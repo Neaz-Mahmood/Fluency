@@ -30,15 +30,15 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 | `tsc --noEmit` | Passes |
 | `eslint .` | Passes, no warnings |
 | `next build` | Passes. `/api/chat` is dynamic; `/` and `/practice` are static. |
-| Automated tests | **None** |
-| Version control | **Not a git repository** |
+| Automated tests | `pnpm test`: 23 Vitest tests covering request validation and provider selection |
+| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`. |
 
 ### Gaps and risks in the current code
 
-1. **No version control.** Nothing records history, and there's nothing to roll back to before Phase 2 changes. Fix this before any other work.
+1. ~~**No version control.**~~ Fixed: the repo is in git and on GitHub.
 2. **`/api/chat` is open.** It has no auth and no rate limit. If deployed as-is, anyone can spend the API key. Don't deploy publicly until Phase 2 auth or a stopgap rate limit is in place.
-3. **Two lockfiles.** `package-lock.json` and `pnpm-lock.yaml` both exist, so installs can resolve different versions.
-4. **No tests.** `lib/chat-request.ts` and `lib/provider.ts` are pure functions that are easy to test now. Phase 3's over-correction gate needs a test harness anyway.
+3. ~~**Two lockfiles.**~~ Fixed: pnpm only.
+4. ~~**No tests.**~~ Fixed for the pure server modules. The UI and the streaming route still have no tests.
 5. **Everything is in memory.** Transcripts live in `Conversation` component state and disappear on reload. The learner model, flashcards and the recap all depend on saved transcripts.
 6. **No latency numbers.** Phase 4's p50/p90 gate needs a baseline, and nothing is measured today.
 7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`, and an English-only UI. That's fine for es → en as long as the native language is stored, but A1 learners need Spanish UI text.
@@ -52,9 +52,9 @@ Tasks are in order. Each one lists the files it touches and what "done" means.
 
 ### Week 0 — Housekeeping (1–2 days)
 
-- [ ] **Set up git.** Run `git init`, check that `.env` stays ignored (`.gitignore` already has `.env*`), and make a first commit of the current working app.
-- [ ] **Pick one package manager.** Keep one lockfile and delete the other. Update `README.md` if the install command changes.
-- [ ] **Add a test runner** (for example Vitest) and an `npm test` script. Write the first tests for `parseChatRequest` and `resolveProvider`, covering every error branch documented in `doc/api.md` and `doc/ai-providers.md`.
+- [x] **Set up git.** Done: the repo is on GitHub (`origin/main`), `.env` is ignored and not committed, and work continues on `feat/v1`.
+- [x] **Pick one package manager.** Done: pnpm (`packageManager: pnpm@11.25.0`). `package-lock.json` is deleted and `README.md` uses `pnpm install` / `pnpm dev`.
+- [x] **Add a test runner.** Done: Vitest (`vitest.config.mts`) with `pnpm test` and `pnpm test:watch`. `lib/chat-request.test.ts` and `lib/provider.test.ts` cover every error branch (23 tests). The config stubs `server-only` so server modules can be imported in tests.
 - [ ] **Decide the open Phase 2 questions** from [roadmap.md](./roadmap.md#open-decisions): auth provider, Postgres host, and an ORM or migration tool.
 
 Done when: the repo has history, `npm test` passes, and the Phase 2 vendors are chosen.

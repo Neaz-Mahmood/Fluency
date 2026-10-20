@@ -5,7 +5,7 @@ A web app for practicing spoken English. You pick a scenario, speak or type, and
 ## Run
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env.local
 ```
 
@@ -24,7 +24,7 @@ GOOGLE_API_KEY=your_google_key
 If only one key is set, Fluency uses that provider. If both keys are set, choose one with `AI_PROVIDER=claude` or `AI_PROVIDER=google`. `ANTHROPIC_API_KEY` is accepted as the Claude key.
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000), then go to Practice. Speech recognition works in Chrome. Typing works in every browser.
