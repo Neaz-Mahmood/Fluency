@@ -30,7 +30,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 | `tsc --noEmit` | Passes |
 | `eslint .` | Passes, no warnings |
 | `next build` | Passes. `/api/chat` is dynamic; `/` and `/practice` are static. |
-| Automated tests | `pnpm test`: 41 unit tests (request validation, provider selection, learner id, proxy). `pnpm test:db`: 7 database tests against `fluency_test`. |
+| Automated tests | `pnpm test`: 41 unit tests (request validation, provider selection, learner id, proxy). `pnpm test:db`: 12 database tests against `fluency_test`. |
 | Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`. |
 
 ### Gaps and risks in the current code
@@ -65,7 +65,7 @@ Done when: the repo has history, `pnpm test` passes, and the database is chosen.
 
 - [x] **Schema and migrations.** Done: all seven tables in `lib/db/schema.ts`, migration `drizzle/0000_learner_schema.sql`, client in `lib/db.ts`. Every table cascades from `learner_profiles`. `native_language` and the CEFR levels stay null until onboarding and placement.
 - [x] **Anonymous learner ID.** Done. `proxy.ts` gives every browser a `fluency_learner` cookie (httpOnly, `SameSite=Lax`, `Secure` in production) and forwards it on the same request. No database work happens there. `getLearner()` in `lib/learner.ts` creates the `learner_profiles` row on first use with `ON CONFLICT DO NOTHING`, so concurrent first requests make exactly one row. `/api/chat` loads the learner and returns a 503 if the database is unreachable. This is the only place Phase 5 login has to change. Tests: `proxy.test.ts`, `lib/learner-id.test.ts`, and `lib/learner.db.test.ts` (`pnpm test:db`).
-- [ ] **Delete my data.** A settings action that deletes the learner row (cascading through every table) and clears the cookie. Add a test that checks no rows remain.
+- [x] **Delete my data.** Done. `/settings` (linked in the nav) has a two-step confirm that calls the `deleteMyData` Server Function (`app/settings/actions.ts`). `deleteCurrentLearner()` in `lib/learner.ts` takes the learner from the cookie, never from the client, deletes the row (which cascades through every table) and clears the cookie. The next request gets a fresh id. `lib/learner.db.test.ts` seeds every table for two learners, deletes one, and checks all 7 tables are empty for that learner while the other is untouched.
 - [ ] **Optional `ACCESS_CODE` gate.** In `proxy.ts`, if `ACCESS_CODE` is set, require it once (stored in a cookie) before serving `/practice` and `/api/chat`. Skip this while running only on localhost. Next.js 16 renamed `middleware` to `proxy`; see `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
 
 Done when: a first visit creates exactly one learner row, a reload reuses it, and deleting your data leaves no rows behind.

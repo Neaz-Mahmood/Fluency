@@ -51,6 +51,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               >
                 Practice
               </Link>
+              <Link
+                href="/settings"
+                className="rounded px-3 py-1.5 text-sm font-medium text-[#556b82] transition-colors hover:bg-[#f4f7fb] hover:text-[#03256c]"
+              >
+                Settings
+              </Link>
             </nav>
           </div>
         </header>

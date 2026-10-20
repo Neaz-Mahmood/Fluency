@@ -23,12 +23,34 @@ export async function ensureLearnerProfile(db: Db, learnerId: string): Promise<L
   return profile;
 }
 
+// Deletes the learner and, through ON DELETE CASCADE, every row that belongs to them.
+// Returns false if there was no such learner.
+export async function deleteLearner(db: Db, learnerId: string): Promise<boolean> {
+  const deleted = await db
+    .delete(learnerProfiles)
+    .where(eq(learnerProfiles.learnerId, learnerId))
+    .returning({ learnerId: learnerProfiles.learnerId });
+  return deleted.length > 0;
+}
+
 // The current learner. Every route gets the learner from here, never from the request
-// body. Phase 5 login changes only this function: it will read the session instead.
+// body. Phase 5 login changes only these functions: they will read the session instead.
 export async function getLearner(): Promise<LearnerProfile> {
   const learnerId = (await cookies()).get(LEARNER_COOKIE)?.value;
   if (!isLearnerId(learnerId)) {
     throw new LearnerUnavailableError("No learner cookie on this request.");
   }
   return ensureLearnerProfile(getDb(), learnerId);
+}
+
+// "Delete my data": removes the current learner's data and forgets the cookie. The next
+// request gets a fresh learner id from proxy.ts. Only Server Functions and Route Handlers
+// may call this, because it deletes a cookie.
+export async function deleteCurrentLearner(): Promise<void> {
+  const store = await cookies();
+  const learnerId = store.get(LEARNER_COOKIE)?.value;
+  if (isLearnerId(learnerId)) {
+    await deleteLearner(getDb(), learnerId);
+  }
+  store.delete(LEARNER_COOKIE);
 }
