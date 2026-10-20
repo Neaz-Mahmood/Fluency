@@ -1,6 +1,6 @@
 import { after } from "next/server";
 
-import { streamClaudeReply } from "@/lib/anthropic";
+import { OPENCODE_BASE_URL, streamClaudeReply } from "@/lib/anthropic";
 import { parseChatRequest } from "@/lib/chat-request";
 import { getDb } from "@/lib/db";
 import type { LearnerProfile, Session } from "@/lib/db/schema";
@@ -42,14 +42,15 @@ export async function POST(request: Request) {
   }
 
   const reply =
-    selected.provider === "claude"
-      ? streamClaudeReply({
+    selected.provider === "google"
+      ? streamGoogleReply({
           apiKey: selected.apiKey,
           system: getSystemPrompt(parsed.scenarioId),
           messages: parsed.messages,
         })
-      : streamGoogleReply({
+      : streamClaudeReply({
           apiKey: selected.apiKey,
+          baseURL: selected.provider === "opencode" ? OPENCODE_BASE_URL : undefined,
           system: getSystemPrompt(parsed.scenarioId),
           messages: parsed.messages,
         });

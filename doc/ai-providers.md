@@ -1,16 +1,16 @@
 # AI providers
 
-The chat route can stream from either Anthropic Claude or Google Gemini. The choice is made at request time based on environment variables, with an optional explicit override.
+The chat route can stream from Anthropic Claude, Google Gemini, or Claude through OpenCode. The choice is made at request time based on environment variables, with an optional explicit override.
 
 ## What it is
 
-A single selection function picks a provider and its key, then dispatches to a streaming function that exposes a uniform `AsyncIterable<string>` interface. Both providers are server-only and share the same call shape.
+A single selection function picks a provider and its key, then dispatches to a streaming function that exposes a uniform `AsyncIterable<string>` interface. All providers are server-only and share the same call shape.
 
 ## Where it lives
 
 ```
 lib/provider.ts        # resolveProvider (env-var logic)
-lib/anthropic.ts       # streamClaudeReply (Claude via @anthropic-ai/sdk)
+lib/anthropic.ts       # streamClaudeReply (Claude and OpenCode via @anthropic-ai/sdk)
 lib/google.ts          # streamGoogleReply (Google via fetch + manual SSE)
 lib/prompts.ts         # getSystemPrompt (system prompt per scenario)
 ```
@@ -22,12 +22,11 @@ lib/prompts.ts         # getSystemPrompt (system prompt per scenario)
 The decision tree, in order:
 
 1. Read `AI_PROVIDER` (trimmed and lowercased).
-   - If it is set to something other than `claude` or `google`, return an error.
-   - If it is `claude` and `CLAUDE_API_KEY` (or `ANTHROPIC_API_KEY`) is unset, return an error.
-   - If it is `google` and `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) is unset, return an error.
+   - If it is set to something other than `claude`, `google` or `opencode`, return an error.
+   - If the key for that provider is unset, return an error.
    - Otherwise, use the requested provider.
 2. With no `AI_PROVIDER` set:
-   - If both keys are set, return an error asking the user to disambiguate.
+   - If more than one key is set, return an error asking the user to disambiguate.
    - If exactly one key is set, use that provider.
    - If neither key is set, return an error.
 
@@ -35,6 +34,7 @@ Supported key variables:
 
 - Claude: `CLAUDE_API_KEY` or `ANTHROPIC_API_KEY` (either is accepted).
 - Google: `GOOGLE_API_KEY` or `GEMINI_API_KEY` (either is accepted).
+- OpenCode: `OPENCODE_API_KEY`.
 
 ## Claude (`lib/anthropic.ts`)
 
@@ -43,6 +43,11 @@ Supported key variables:
 - Request shape: `messages.stream({ model, max_tokens: 1500, system, messages, output_config: { effort: "low" } })`.
 - Streams `content_block_delta` events whose `delta.type === "text_delta"` and yields the text fragments.
 - `abort()` calls `stream.abort()`, which cancels the in-flight HTTP request.
+
+## OpenCode (`lib/anthropic.ts`)
+
+- OpenCode exposes Claude models through an Anthropic-compatible Messages API, so it reuses `streamClaudeReply` with `baseURL` set to `OPENCODE_BASE_URL` (`https://opencode.ai/inference/anthropic`).
+- Same model and request shape as Claude. Keys come from the OpenCode console (`opencode.ai/console`), which bills pay-as-you-go.
 
 ## Google (`lib/google.ts`)
 
@@ -60,7 +65,7 @@ Supported key variables:
 
 ## Shared interface
 
-Both functions return `TextReply`, an object with:
+Both stream functions return `TextReply`, an object with:
 
 - `text: AsyncIterable<string>` — the streamed text fragments.
 - `abort: () => void` — cancel the upstream call.

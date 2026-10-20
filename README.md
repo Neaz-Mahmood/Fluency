@@ -21,7 +21,13 @@ or
 GOOGLE_API_KEY=your_google_key
 ```
 
-If only one key is set, Fluency uses that provider. If both keys are set, choose one with `AI_PROVIDER=claude` or `AI_PROVIDER=google`. `ANTHROPIC_API_KEY` is accepted as the Claude key.
+or, to run Claude through [OpenCode](https://opencode.ai/console):
+
+```
+OPENCODE_API_KEY=your_opencode_key
+```
+
+If only one key is set, Fluency uses that provider. If more than one is set, choose one with `AI_PROVIDER=claude`, `AI_PROVIDER=google` or `AI_PROVIDER=opencode`. `ANTHROPIC_API_KEY` is accepted as the Claude key.
 
 Start the local database (needs Docker) and apply migrations. `DATABASE_URL` in `.env.example` already matches it.
 

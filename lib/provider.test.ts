@@ -6,6 +6,10 @@ describe("resolveProvider", () => {
   it("uses the only key that is set", () => {
     expect(resolveProvider({ CLAUDE_API_KEY: "c" })).toEqual({ provider: "claude", apiKey: "c" });
     expect(resolveProvider({ GOOGLE_API_KEY: "g" })).toEqual({ provider: "google", apiKey: "g" });
+    expect(resolveProvider({ OPENCODE_API_KEY: "o" })).toEqual({
+      provider: "opencode",
+      apiKey: "o",
+    });
   });
 
   it("accepts the alternate key names", () => {
@@ -48,11 +52,15 @@ describe("resolveProvider", () => {
       provider: "google",
       apiKey: "g",
     });
+    expect(resolveProvider({ ...env, OPENCODE_API_KEY: "o", AI_PROVIDER: "opencode" })).toEqual({
+      provider: "opencode",
+      apiKey: "o",
+    });
   });
 
   it("rejects an unknown AI_PROVIDER", () => {
     expect(resolveProvider({ AI_PROVIDER: "openai", CLAUDE_API_KEY: "c" })).toEqual({
-      error: "AI_PROVIDER must be claude or google.",
+      error: "AI_PROVIDER must be claude, google or opencode.",
     });
   });
 
@@ -63,15 +71,25 @@ describe("resolveProvider", () => {
     expect(resolveProvider({ AI_PROVIDER: "google", CLAUDE_API_KEY: "c" })).toEqual({
       error: "AI_PROVIDER is google, but GOOGLE_API_KEY is not set.",
     });
+    expect(resolveProvider({ AI_PROVIDER: "opencode", CLAUDE_API_KEY: "c" })).toEqual({
+      error: "AI_PROVIDER is opencode, but OPENCODE_API_KEY is not set.",
+    });
   });
 
-  it("asks to disambiguate when both keys are set without AI_PROVIDER", () => {
+  it("asks to disambiguate when several keys are set without AI_PROVIDER", () => {
     expect(resolveProvider({ CLAUDE_API_KEY: "c", GOOGLE_API_KEY: "g" })).toEqual({
-      error: "Both CLAUDE_API_KEY and GOOGLE_API_KEY are set. Set AI_PROVIDER to claude or google.",
+      error:
+        "More than one key is set (CLAUDE_API_KEY and GOOGLE_API_KEY). Set AI_PROVIDER to claude or google.",
+    });
+    expect(resolveProvider({ CLAUDE_API_KEY: "c", OPENCODE_API_KEY: "o" })).toEqual({
+      error:
+        "More than one key is set (CLAUDE_API_KEY and OPENCODE_API_KEY). Set AI_PROVIDER to claude or opencode.",
     });
   });
 
   it("errors when no key is set", () => {
-    expect(resolveProvider({})).toEqual({ error: "Set CLAUDE_API_KEY or GOOGLE_API_KEY." });
+    expect(resolveProvider({})).toEqual({
+      error: "Set CLAUDE_API_KEY, GOOGLE_API_KEY or OPENCODE_API_KEY.",
+    });
   });
 });

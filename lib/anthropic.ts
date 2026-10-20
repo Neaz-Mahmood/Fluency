@@ -9,6 +9,9 @@ export const CLAUDE_MODELS = {
   feedback: "claude-opus-5-5",
 } as const;
 
+// OpenCode serves the same Claude models through an Anthropic-compatible Messages API.
+export const OPENCODE_BASE_URL = "https://opencode.ai/inference/anthropic";
+
 export type TextReply = {
   abort: () => void;
   text: AsyncIterable<string>;
@@ -16,10 +19,11 @@ export type TextReply = {
 
 export function streamClaudeReply(options: {
   apiKey: string;
+  baseURL?: string;
   system: string;
   messages: ChatTurn[];
 }): TextReply {
-  const client = new Anthropic({ apiKey: options.apiKey });
+  const client = new Anthropic({ apiKey: options.apiKey, baseURL: options.baseURL });
   const stream = client.messages.stream({
     model: CLAUDE_MODELS.conversation,
     max_tokens: 1500,
