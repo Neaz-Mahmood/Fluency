@@ -12,6 +12,8 @@ A Next.js Route Handler that accepts a JSON conversation and streams the partner
 app/api/chat/route.ts   # POST handler
 lib/chat-request.ts     # parseChatRequest (validation)
 lib/provider.ts         # resolveProvider (env-var logic)
+lib/provider-errors.ts  # ProviderError, toProviderError, providerErrorResponse
+lib/reply-stream.ts     # startReply (first-token wait and idle timeout)
 lib/learner.ts          # getLearner (anonymous learner from the cookie)
 lib/sessions.ts         # resolveSession, saveExchange
 lib/prompts.ts          # getSystemPrompt (per-scenario behavior)
@@ -36,7 +38,13 @@ Content-Type: application/json
 
 ## Response
 
-The handler returns a `ReadableStream<Uint8Array>` with:
+Before streaming starts, a provider failure returns a JSON error response:
+
+- `503` busy: "The AI partner is busy right now. Try again in a moment."
+- `504` timeout: "The AI partner took too long to answer. Try again."
+- `502` failed: "The AI partner could not reply. Try again."
+
+Once streaming begins, the handler returns a `ReadableStream<Uint8Array>` with:
 
 - `Content-Type: text/plain; charset=utf-8`
 - `Cache-Control: no-store`
@@ -65,11 +73,11 @@ The handler calls `resolveProvider()` (see [ai-providers.md](./ai-providers.md))
 
 ## Learner and session
 
-Before streaming, the handler loads the current learner with `getLearner()` (`lib/learner.ts`), which reads the `fluency_learner` cookie set by `proxy.ts`. It then calls `resolveSession()` (`lib/sessions.ts`). That reuses `sessionId` only if the session belongs to this learner, is for the same scenario and hasn't ended. Otherwise it starts a new session, so a client can't write into another learner's session. If the database is unreachable, the handler returns `503`.
+Before streaming, the handler loads the current learner with `getLearner()` (`lib/learner.ts`), which reads the `fluency_learner` cookie set by `proxy.ts`. The session is resolved with `resolveSession()` (`lib/sessions.ts`) only after the first token arrives, so a failed turn creates no session. That reuses `sessionId` only if the session belongs to this learner, is for the same scenario and hasn't ended. Otherwise it starts a new session, so a client can't write into another learner's session. If the database is unreachable, the handler returns `503`.
 
 ## Saving turns
 
-The stream resolves a promise with the streamed text when the reply ends, whether it completes, fails or is cancelled. An `after()` callback (`next/server`) waits for it and calls `saveExchange()`. That appends the latest user message (with `inputMode`) and the reply to `session_turns` in one transaction that locks the session row. An empty reply saves only the user turn. Saving never delays the reply, and a save failure is logged, not shown to the learner.
+A failure before the first token saves nothing. When a reply starts, the stream resolves a promise with the streamed text when the reply ends, whether it completes, fails or is cancelled. An `after()` callback (`next/server`) waits for it and calls `saveExchange()`. That appends the latest user message (with `inputMode`) and the reply to `session_turns` in one transaction that locks the session row. An empty reply saves only the user turn. Saving never delays the reply, and a save failure is logged, not shown to the learner.
 
 The server still uses the client's `messages` array as the conversation history. Reading history from the database instead is FLU-23.
 
@@ -77,9 +85,13 @@ The server still uses the client's `messages` array as the conversation history.
 
 After provider resolution, the handler dispatches to `streamClaudeReply` or `streamGoogleReply`. The reply's async iterator is wrapped in a `ReadableStream`. Each chunk is encoded as UTF-8 and pushed to the controller. The `cancel()` callback on the stream aborts the underlying provider call, so closing the connection stops the generation immediately.
 
+## Time limits
+
+The route waits up to 20 s for the first token (`FIRST_TOKEN_TIMEOUT_MS` in `lib/reply-stream.ts`). After that, 15 s without a chunk (`IDLE_TIMEOUT_MS`) aborts the provider and ends the stream, keeping the partial reply.
+
 ## Notes
 
 - There is no separate non-streaming endpoint. The client always streams.
 - There is no login yet (Phase 5). The learner is identified by the anonymous `fluency_learner` cookie.
-- Next.js sends the response headers only with the first chunk. A provider that never sends a token leaves the request hanging with no headers. See FLU-34.
+- The route waits for the first token, so errors before it are returned as JSON.
 - The route is the only network surface between the browser and the AI providers.

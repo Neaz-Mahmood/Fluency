@@ -12,26 +12,26 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 
 ### Built and working (Phases 0–1)
 
-| Area | State | Where |
-| --- | --- | --- |
-| App shell, home page, practice route | Working | `app/layout.tsx`, `app/page.tsx`, `app/practice/page.tsx` |
-| Four scenarios | Working | `lib/scenarios.ts`, `components/ScenarioPicker.tsx` |
-| Streaming chat with Claude or Gemini | Working | `app/api/chat/route.ts`, `lib/anthropic.ts`, `lib/google.ts`, `lib/provider.ts` |
-| Request validation (alternating turns, max 40 turns, max 2,000 chars per message) | Working | `lib/chat-request.ts` |
-| Hold-to-talk and hands-free voice input (Web Speech, Chrome) | Working | `lib/stt.ts`, `components/Conversation.tsx` |
-| Spoken replies, split into sentences (Web Speech) | Working | `lib/tts.ts` |
-| Typed fallback | Working | `components/Conversation.tsx` |
-| Implicit correction (the partner rephrases unclear English) | Working, in the prompt only | `lib/prompts.ts` |
+| Area                                                                              | State                       | Where                                                                           |
+| --------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------- |
+| App shell, home page, practice route                                              | Working                     | `app/layout.tsx`, `app/page.tsx`, `app/practice/page.tsx`                       |
+| Four scenarios                                                                    | Working                     | `lib/scenarios.ts`, `components/ScenarioPicker.tsx`                             |
+| Streaming chat with Claude or Gemini                                              | Working                     | `app/api/chat/route.ts`, `lib/anthropic.ts`, `lib/google.ts`, `lib/provider.ts` |
+| Request validation (alternating turns, max 40 turns, max 2,000 chars per message) | Working                     | `lib/chat-request.ts`                                                           |
+| Hold-to-talk and hands-free voice input (Web Speech, Chrome)                      | Working                     | `lib/stt.ts`, `components/Conversation.tsx`                                     |
+| Spoken replies, split into sentences (Web Speech)                                 | Working                     | `lib/tts.ts`                                                                    |
+| Typed fallback                                                                    | Working                     | `components/Conversation.tsx`                                                   |
+| Implicit correction (the partner rephrases unclear English)                       | Working, in the prompt only | `lib/prompts.ts`                                                                |
 
 ### Health checks
 
-| Check | Result |
-| --- | --- |
-| `tsc --noEmit` | Passes |
-| `eslint .` | Passes, no warnings |
-| `next build` | Passes. `/api/chat` is dynamic; `/` and `/practice` are static. |
-| Automated tests | `pnpm test`: 49 unit tests (request validation, provider selection, learner id, proxy). `pnpm test:db`: 21 database tests against `fluency_test`. |
-| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`. |
+| Check           | Result                                                                                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tsc --noEmit`  | Passes                                                                                                                                                                                |
+| `eslint .`      | Passes, no warnings                                                                                                                                                                   |
+| `next build`    | Passes. `/api/chat` is dynamic; `/` and `/practice` are static.                                                                                                                       |
+| Automated tests | `pnpm test`: 84 unit tests (request validation, provider selection, learner id, proxy, provider errors, reply time limits). `pnpm test:db`: 21 database tests against `fluency_test`. |
+| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`.                                                                                                                             |
 
 ### Gaps and risks in the current code
 

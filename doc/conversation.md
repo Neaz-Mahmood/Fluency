@@ -18,12 +18,12 @@ app/practice/page.tsx         # Route that hosts <Conversation />
 
 `<Conversation />` exposes a `Status` enum with four values:
 
-| Status | When | What the user sees |
-| --- | --- | --- |
-| `idle` | Default; between turns | "Ready for input" or "Hands-free active" |
-| `listening` | Mic session is open | "Listening…" |
-| `thinking` | Request is in flight | "Processing…" |
-| `speaking` | TTS is playing the partner's reply | "Speaking…" |
+| Status      | When                               | What the user sees                       |
+| ----------- | ---------------------------------- | ---------------------------------------- |
+| `idle`      | Default; between turns             | "Ready for input" or "Hands-free active" |
+| `listening` | Mic session is open                | "Listening…"                             |
+| `thinking`  | Request is in flight               | "Processing…"                            |
+| `speaking`  | TTS is playing the partner's reply | "Speaking…"                              |
 
 The state is mirrored to `statusRef` so the recognition and fetch callbacks can read it without re-binding.
 
@@ -33,7 +33,9 @@ The state is mirrored to `statusRef` so the recognition and fetch callbacks can 
 2. The user speaks (mic path) or types (text path). Both end up calling `sendUserText(text)`.
 3. `sendUserText` trims the text, aborts any in-flight request, stops any in-flight TTS, and increments `turnToken` to invalidate stale replies.
 4. The user turn is appended to the `turns` array, an empty assistant turn is appended, and `setStatus("thinking")` runs.
-5. The component streams `POST /api/chat`. As chunks arrive, the assistant turn is updated in place. On error or empty reply, the turn is removed and the error is surfaced.
+5. The component streams `POST /api/chat`. As chunks arrive, the assistant turn is updated in place. On failure:
+   - before any reply (server error, network error, or empty reply): the user turn is removed, its text is put back in the input to resend, and the message is shown
+   - mid-reply failure: the partial reply is kept, with "The reply was cut off. You can keep going."
 6. On a non-empty final reply, `speakReply(text, token)` speaks the reply and returns to `idle`. With hands-free on, listening restarts automatically.
 7. The "Stop" button calls `interrupt()`, which increments the turn token, aborts the request, aborts recognition, cancels TTS, and drops any empty turns.
 

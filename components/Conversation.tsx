@@ -158,21 +158,34 @@ export function Conversation() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    let received = "";
+
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({
-          scenarioId,
-          sessionId: chatSessionIdRef.current ?? undefined,
-          inputMode,
-          messages: history.map(({ role, content: turnContent }) => ({
-            role,
-            content: turnContent,
-          })),
-        }),
-      });
+      let response: Response;
+      try {
+        response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            scenarioId,
+            sessionId: chatSessionIdRef.current ?? undefined,
+            inputMode,
+            messages: history.map(({ role, content: turnContent }) => ({
+              role,
+              content: turnContent,
+            })),
+          }),
+        });
+      } catch (caughtFetch) {
+        if (
+          controller.signal.aborted ||
+          (caughtFetch instanceof DOMException && caughtFetch.name === "AbortError")
+        ) {
+          throw caughtFetch;
+        }
+        throw new Error("The conversation partner could not reply.");
+      }
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -182,26 +195,25 @@ export function Conversation() {
       chatSessionIdRef.current = response.headers.get("X-Session-Id") ?? chatSessionIdRef.current;
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error("The reply stream was empty.");
+      if (!reader) throw new Error("The conversation partner could not reply.");
 
       const decoder = new TextDecoder();
-      let reply = "";
       setTurns((current) => [...current, { id: assistantId, role: "assistant", content: "" }]);
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        reply += decoder.decode(value, { stream: true });
+        received += decoder.decode(value, { stream: true });
         if (!isCurrent(token)) return;
-        const snapshot = reply;
+        const snapshot = received;
         setTurns((current) =>
           current.map((turn) => (turn.id === assistantId ? { ...turn, content: snapshot } : turn)),
         );
       }
-      reply += decoder.decode();
+      received += decoder.decode();
 
       if (!isCurrent(token)) return;
-      const finalReply = reply.trim();
+      const finalReply = received.trim();
       if (!finalReply) throw new Error("The partner did not say anything. Try again.");
 
       setTurns((current) =>
@@ -212,9 +224,23 @@ export function Conversation() {
       if (!isCurrent(token) || (caught instanceof DOMException && caught.name === "AbortError")) {
         return;
       }
-      setTurns((current) => current.filter((turn) => turn.content.trim().length > 0));
+      if (received.trim().length > 0) {
+        setTurns((current) =>
+          current.map((turn) =>
+            turn.id === assistantId ? { ...turn, content: received.trim() } : turn,
+          ),
+        );
+        setError("The reply was cut off. You can keep going.");
+      } else {
+        setTurns((current) =>
+          current.filter((turn) => turn.id !== userTurn.id && turn.id !== assistantId),
+        );
+        setDraft(content);
+        setError(
+          caught instanceof Error ? caught.message : "The conversation partner could not reply.",
+        );
+      }
       setStatus("idle");
-      setError(caught instanceof Error ? caught.message : "The reply failed.");
     }
   }
 

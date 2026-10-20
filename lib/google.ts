@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ChatTurn } from "@/lib/chat-request";
 import type { TextReply } from "@/lib/anthropic";
+import { kindForStatus, ProviderError } from "@/lib/provider-errors";
 
 const GOOGLE_MODEL = "gemini-3.8-flash";
 
@@ -96,7 +97,11 @@ export function streamGoogleReply(options: {
         }),
       });
 
-      if (!response.ok) throw new Error(await googleFailure(response));
+      if (!response.ok) {
+        throw new ProviderError(kindForStatus(response.status), await googleFailure(response), {
+          status: response.status,
+        });
+      }
       yield* readSse(response);
     })(),
   };
