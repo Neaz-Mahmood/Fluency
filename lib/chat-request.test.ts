@@ -33,6 +33,35 @@ describe("parseChatRequest", () => {
     });
   });
 
+  it("passes through a valid session id and input mode", () => {
+    const sessionId = "f6536803-6692-4a9b-a8bf-64eb56f56c61";
+    expect(
+      parseChatRequest({
+        scenarioId: "cafe",
+        sessionId,
+        inputMode: "voice",
+        messages: [user("Hi")],
+      }),
+    ).toEqual({
+      scenarioId: "cafe",
+      sessionId,
+      inputMode: "voice",
+      messages: [{ role: "user", content: "Hi" }],
+    });
+  });
+
+  it.each(["", "abc", 42, null])("rejects an invalid session id (%j)", (sessionId) => {
+    expect(parseChatRequest({ scenarioId: "cafe", sessionId, messages: [user("Hi")] })).toEqual({
+      error: "The session id is not valid. Start a new conversation.",
+    });
+  });
+
+  it.each(["text", "", null])("rejects an invalid input mode (%j)", (inputMode) => {
+    expect(parseChatRequest({ scenarioId: "cafe", inputMode, messages: [user("Hi")] })).toEqual({
+      error: "Input mode must be voice or typed.",
+    });
+  });
+
   it.each([null, undefined, "text", 42])("rejects a non-object body (%s)", (body) => {
     expect(parseChatRequest(body)).toEqual({ error: "Request body must be an object." });
   });

@@ -12,6 +12,8 @@ A Next.js Route Handler that accepts a JSON conversation and streams the partner
 app/api/chat/route.ts   # POST handler
 lib/chat-request.ts     # parseChatRequest (validation)
 lib/provider.ts         # resolveProvider (env-var logic)
+lib/learner.ts          # getLearner (anonymous learner from the cookie)
+lib/sessions.ts         # resolveSession, saveExchange
 lib/prompts.ts          # getSystemPrompt (per-scenario behavior)
 ```
 
@@ -23,6 +25,8 @@ Content-Type: application/json
 
 {
   "scenarioId": "free-chat" | "job-interview" | "cafe" | "neighbor",
+  "sessionId": "uuid",          // optional: from the previous reply's X-Session-Id
+  "inputMode": "voice" | "typed", // optional: how the latest message was produced
   "messages": [
     { "role": "user" | "assistant", "content": "string" },
     ...
@@ -36,6 +40,7 @@ The handler returns a `ReadableStream<Uint8Array>` with:
 
 - `Content-Type: text/plain; charset=utf-8`
 - `Cache-Control: no-store`
+- `X-Session-Id: <uuid>`: the saved session this turn belongs to. The client sends it back as `sessionId` on the next turn.
 
 The body is the raw text of the partner's reply, streamed token-by-token. If the client cancels the request, the handler calls `reply.abort()` so the upstream provider stops generating.
 
@@ -58,6 +63,16 @@ Validation errors return `400` with `{ "error": "<message>" }`. Malformed JSON a
 
 The handler calls `resolveProvider()` (see [ai-providers.md](./ai-providers.md)) before streaming. If provider resolution fails (for example, no API key is set), the handler returns `503` with the error message.
 
+## Learner and session
+
+Before streaming, the handler loads the current learner with `getLearner()` (`lib/learner.ts`), which reads the `fluency_learner` cookie set by `proxy.ts`. It then calls `resolveSession()` (`lib/sessions.ts`). That reuses `sessionId` only if the session belongs to this learner, is for the same scenario and hasn't ended. Otherwise it starts a new session, so a client can't write into another learner's session. If the database is unreachable, the handler returns `503`.
+
+## Saving turns
+
+The stream resolves a promise with the streamed text when the reply ends, whether it completes, fails or is cancelled. An `after()` callback (`next/server`) waits for it and calls `saveExchange()`. That appends the latest user message (with `inputMode`) and the reply to `session_turns` in one transaction that locks the session row. An empty reply saves only the user turn. Saving never delays the reply, and a save failure is logged, not shown to the learner.
+
+The server still uses the client's `messages` array as the conversation history. Reading history from the database instead is FLU-23.
+
 ## Streaming
 
 After provider resolution, the handler dispatches to `streamClaudeReply` or `streamGoogleReply`. The reply's async iterator is wrapped in a `ReadableStream`. Each chunk is encoded as UTF-8 and pushed to the controller. The `cancel()` callback on the stream aborts the underlying provider call, so closing the connection stops the generation immediately.
@@ -65,5 +80,6 @@ After provider resolution, the handler dispatches to `streamClaudeReply` or `str
 ## Notes
 
 - There is no separate non-streaming endpoint. The client always streams.
-- There is no authentication; the route is open by design (no accounts yet).
+- There is no login yet (Phase 5). The learner is identified by the anonymous `fluency_learner` cookie.
+- Next.js sends the response headers only with the first chunk. A provider that never sends a token leaves the request hanging with no headers. See FLU-34.
 - The route is the only network surface between the browser and the AI providers.

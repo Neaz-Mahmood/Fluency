@@ -30,7 +30,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 | `tsc --noEmit` | Passes |
 | `eslint .` | Passes, no warnings |
 | `next build` | Passes. `/api/chat` is dynamic; `/` and `/practice` are static. |
-| Automated tests | `pnpm test`: 41 unit tests (request validation, provider selection, learner id, proxy). `pnpm test:db`: 12 database tests against `fluency_test`. |
+| Automated tests | `pnpm test`: 49 unit tests (request validation, provider selection, learner id, proxy). `pnpm test:db`: 21 database tests against `fluency_test`. |
 | Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`. |
 
 ### Gaps and risks in the current code
@@ -72,7 +72,7 @@ Done when: a first visit creates exactly one learner row, a reload reuses it, an
 
 #### Week 2: Saved sessions and measurement
 
-- [ ] **Save sessions.** Create a `sessions` row when a scenario is picked. In `app/api/chat/route.ts`, save the user turn and the full assistant reply after the stream finishes, using `after()` from `next/server` so saving never delays the reply.
+- [x] **Save sessions.** Done (FLU-22). A session is created on the first message, not when a scenario is picked, so browsing scenarios leaves no empty sessions. The server returns its id in `X-Session-Id`, and the client sends it back. `resolveSession()` only reuses a session that belongs to this learner and scenario. `after()` waits for the stream to end and saves the user turn (with `inputMode`) and the reply in one locked transaction. See `doc/api.md`.
 - [ ] **Load from the database.** Read history from the database instead of trusting the client's `messages` array. Keep `parseChatRequest` for validating the new turn.
 - [ ] **Session history page.** List past sessions and open a read-only transcript.
 - [ ] **Latency logging.** Server: time to first token per turn in `route.ts`. Client: time from send to `speakText` `onStart` in `Conversation.tsx`. Store both per turn in `session_turns`.

@@ -43,6 +43,8 @@ export function Conversation() {
   const turnsRef = useRef<Turn[]>([]);
   const handsFreeRef = useRef(false);
   const sessionRef = useRef<ListeningSession | null>(null);
+  // The saved conversation, from the X-Session-Id header of the first reply.
+  const chatSessionIdRef = useRef<string | null>(null);
   const cancelSpeechRef = useRef<(() => void) | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const turnToken = useRef(0);
@@ -117,7 +119,7 @@ export function Conversation() {
           setStatus("idle");
           return;
         }
-        void sendUserText(finalText);
+        void sendUserText(finalText, "voice");
       },
     });
 
@@ -134,7 +136,7 @@ export function Conversation() {
     stopListening(false);
   }
 
-  async function sendUserText(text: string) {
+  async function sendUserText(text: string, inputMode: "voice" | "typed") {
     const content = text.trim();
     if (!content || !scenarioId || statusRef.current === "thinking") return;
 
@@ -163,6 +165,8 @@ export function Conversation() {
         signal: controller.signal,
         body: JSON.stringify({
           scenarioId,
+          sessionId: chatSessionIdRef.current ?? undefined,
+          inputMode,
           messages: history.map(({ role, content: turnContent }) => ({
             role,
             content: turnContent,
@@ -174,6 +178,8 @@ export function Conversation() {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error ?? "The conversation partner could not reply.");
       }
+
+      chatSessionIdRef.current = response.headers.get("X-Session-Id") ?? chatSessionIdRef.current;
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error("The reply stream was empty.");
@@ -273,7 +279,7 @@ export function Conversation() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    void sendUserText(draft);
+    void sendUserText(draft, "typed");
   }
 
   const scenario = SCENARIOS.find((item) => item.id === scenarioId);
@@ -284,6 +290,7 @@ export function Conversation() {
         onSelect={(id) => {
           interrupt();
           setTurns([]);
+          chatSessionIdRef.current = null;
           setScenarioId(id);
         }}
       />
@@ -321,6 +328,7 @@ export function Conversation() {
           onClick={() => {
             interrupt();
             setTurns([]);
+            chatSessionIdRef.current = null;
             setScenarioId(null);
           }}
         >
@@ -368,9 +376,7 @@ export function Conversation() {
             }`}
           >
             <span
-              className={`size-1.5 rounded-full ${
-                handsFree ? "bg-[#06bee1]" : "bg-[#c5c6d2]"
-              }`}
+              className={`size-1.5 rounded-full ${handsFree ? "bg-[#06bee1]" : "bg-[#c5c6d2]"}`}
             />
             Hands-free
           </button>
@@ -384,7 +390,8 @@ export function Conversation() {
 
         {!speechReady ? (
           <p className="text-xs text-[#556b82]">
-            Speech recognition is unavailable in this browser. You can type your lines, and replies will be vocalized
+            Speech recognition is unavailable in this browser. You can type your lines, and replies
+            will be vocalized
             {voiceReady ? "." : " if audio synthesis is available."}
           </p>
         ) : null}

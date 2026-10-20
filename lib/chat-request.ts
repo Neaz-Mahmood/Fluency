@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/learner-id";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
 
 export type ChatTurn = {
@@ -5,12 +6,21 @@ export type ChatTurn = {
   content: string;
 };
 
+export type InputMode = "voice" | "typed";
+
+export type ChatRequest = {
+  scenarioId: ScenarioId;
+  messages: ChatTurn[];
+  // The session from a previous reply's X-Session-Id header. Absent on the first turn.
+  sessionId?: string;
+  // How the learner produced the latest message.
+  inputMode?: InputMode;
+};
+
 const MAX_TURNS = 40;
 const MAX_CHARS = 2000;
 
-export function parseChatRequest(
-  body: unknown,
-): { scenarioId: ScenarioId; messages: ChatTurn[] } | { error: string } {
+export function parseChatRequest(body: unknown): ChatRequest | { error: string } {
   if (!body || typeof body !== "object") {
     return { error: "Request body must be an object." };
   }
@@ -18,6 +28,14 @@ export function parseChatRequest(
   const record = body as Record<string, unknown>;
   if (typeof record.scenarioId !== "string" || !isScenarioId(record.scenarioId)) {
     return { error: "Choose a scenario before sending a message." };
+  }
+
+  const { sessionId, inputMode } = record;
+  if (sessionId !== undefined && !isUuid(sessionId)) {
+    return { error: "The session id is not valid. Start a new conversation." };
+  }
+  if (inputMode !== undefined && inputMode !== "voice" && inputMode !== "typed") {
+    return { error: "Input mode must be voice or typed." };
   }
 
   if (!Array.isArray(record.messages) || record.messages.length === 0) {
@@ -58,5 +76,10 @@ export function parseChatRequest(
     return { error: "The latest message must be from you." };
   }
 
-  return { scenarioId: record.scenarioId, messages };
+  return {
+    scenarioId: record.scenarioId,
+    messages,
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(inputMode !== undefined ? { inputMode: inputMode as InputMode } : {}),
+  };
 }
