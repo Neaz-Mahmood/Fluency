@@ -36,7 +36,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 ### Gaps and risks in the current code
 
 1. ~~**No version control.**~~ Fixed: the repo is in git and on GitHub.
-2. **`/api/chat` is open.** Login is deferred until after the MVP, so the route stays open. Run the app locally, or set the optional `ACCESS_CODE` gate (Week 1) before deploying it anywhere testers can reach. Otherwise anyone with the URL can spend the API key.
+2. **`/api/chat` is open.** Login is built last (end of Phase 5), so the route stays open until then. Run the app locally, or set the optional `ACCESS_CODE` gate (Week 1) before deploying it anywhere testers can reach. Otherwise anyone with the URL can spend the API key.
 3. ~~**Two lockfiles.**~~ Fixed: pnpm only.
 4. ~~**No tests.**~~ Fixed for the pure server modules. The UI and the streaming route still have no tests.
 5. **Everything is in memory.** Transcripts live in `Conversation` component state and disappear on reload. The learner model, flashcards and the recap all depend on saved transcripts.
@@ -55,7 +55,7 @@ Tasks are in order. Each one lists the files it touches and what "done" means.
 - [x] **Set up git.** Done: the repo is on GitHub (`origin/main`), `.env` is ignored and not committed, and work continues on `feat/v1`.
 - [x] **Pick one package manager.** Done: pnpm (`packageManager: pnpm@11.25.0`). `package-lock.json` is deleted and `README.md` uses `pnpm install` / `pnpm dev`.
 - [x] **Add a test runner.** Done: Vitest (`vitest.config.mts`) with `pnpm test` and `pnpm test:watch`. `lib/chat-request.test.ts` and `lib/provider.test.ts` cover every error branch (23 tests). The config stubs `server-only` so server modules can be imported in tests.
-- [ ] **Choose the Postgres host and database library** (ORM or migration tool). See [roadmap.md](./roadmap.md#open-decisions). Login is deferred until after the MVP, so no auth provider is needed yet.
+- [ ] **Choose the Postgres host and database library** (ORM or migration tool). See [roadmap.md](./roadmap.md#open-decisions). Login (email/password and Google) is built last, in Phase 5, so the auth library can wait. It must work with whatever database you pick here.
 
 Done when: the repo has history, `pnpm test` passes, and the database is chosen.
 
@@ -64,7 +64,7 @@ Done when: the repo has history, `pnpm test` passes, and the database is chosen.
 #### Week 1: Anonymous learners and the database
 
 - [ ] **Schema and migrations.** Create `learner_profiles` (with a nullable `user_id` for login later), `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`, `sessions`, `session_turns` and `voice_usage`, following [roadmap.md](./roadmap.md#phase-2--weeks-13-learner-model-and-measurement). Add a server-only `lib/db.ts`.
-- [ ] **Anonymous learner ID.** A server-only `lib/learner.ts` that reads the `learner_id` cookie (httpOnly, `SameSite=Lax`, `Secure` in production), or creates a `learner_profiles` row and sets the cookie if there isn't one. `/api/chat` and every later data route get the learner from here, never from the request body.
+- [ ] **Anonymous learner ID.** A server-only `lib/learner.ts` that reads the `learner_id` cookie (httpOnly, `SameSite=Lax`, `Secure` in production), or creates a `learner_profiles` row and sets the cookie if there isn't one. `/api/chat` and every later data route get the learner from here, never from the request body. This is the only place Phase 5 login has to change.
 - [ ] **Delete my data.** A settings action that deletes the learner row (cascading through every table) and clears the cookie. Add a test that checks no rows remain.
 - [ ] **Optional `ACCESS_CODE` gate.** In `proxy.ts`, if `ACCESS_CODE` is set, require it once (stored in a cookie) before serving `/practice` and `/api/chat`. Skip this while running only on localhost. Next.js 16 renamed `middleware` to `proxy`; see `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
 
@@ -101,7 +101,7 @@ Done when: a new learner completes placement, finishes one session, and their ne
 
 ## After Phase 2
 
-Phases 3–5, and the login work required before public launch, are in [roadmap.md](./roadmap.md). Before starting Phase 3, update this page: move finished items into **Current status**, and break Phase 3 into weekly tasks the same way.
+Phases 3–5 are in [roadmap.md](./roadmap.md). Login (email/password and Google) is the last part of Phase 5. Before starting Phase 3, update this page: move finished items into **Current status**, and break Phase 3 into weekly tasks the same way.
 
 ## Notes
 
