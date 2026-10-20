@@ -36,7 +36,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 ### Gaps and risks in the current code
 
 1. ~~**No version control.**~~ Fixed: the repo is in git and on GitHub.
-2. **`/api/chat` is open.** It has no auth and no rate limit. If deployed as-is, anyone can spend the API key. Don't deploy publicly until Phase 2 auth or a stopgap rate limit is in place.
+2. **`/api/chat` is open.** Login is deferred until after the MVP, so the route stays open. Run the app locally, or set the optional `ACCESS_CODE` gate (Week 1) before deploying it anywhere testers can reach. Otherwise anyone with the URL can spend the API key.
 3. ~~**Two lockfiles.**~~ Fixed: pnpm only.
 4. ~~**No tests.**~~ Fixed for the pure server modules. The UI and the streaming route still have no tests.
 5. **Everything is in memory.** Transcripts live in `Conversation` component state and disappear on reload. The learner model, flashcards and the recap all depend on saved transcripts.
@@ -55,19 +55,20 @@ Tasks are in order. Each one lists the files it touches and what "done" means.
 - [x] **Set up git.** Done: the repo is on GitHub (`origin/main`), `.env` is ignored and not committed, and work continues on `feat/v1`.
 - [x] **Pick one package manager.** Done: pnpm (`packageManager: pnpm@11.25.0`). `package-lock.json` is deleted and `README.md` uses `pnpm install` / `pnpm dev`.
 - [x] **Add a test runner.** Done: Vitest (`vitest.config.mts`) with `pnpm test` and `pnpm test:watch`. `lib/chat-request.test.ts` and `lib/provider.test.ts` cover every error branch (23 tests). The config stubs `server-only` so server modules can be imported in tests.
-- [ ] **Decide the open Phase 2 questions** from [roadmap.md](./roadmap.md#open-decisions): auth provider, Postgres host, and an ORM or migration tool.
+- [ ] **Choose the Postgres host and database library** (ORM or migration tool). See [roadmap.md](./roadmap.md#open-decisions). Login is deferred until after the MVP, so no auth provider is needed yet.
 
-Done when: the repo has history, `npm test` passes, and the Phase 2 vendors are chosen.
+Done when: the repo has history, `pnpm test` passes, and the database is chosen.
 
-### Phase 2 — Weeks 1–3: Accounts, learner model, measurement
+### Phase 2 — Weeks 1–3: Learner model and measurement
 
-#### Week 1: Accounts and the database
+#### Week 1: Anonymous learners and the database
 
-- [ ] **Auth.** Add sign-up and sign-in. Protect `/practice` and `/api/chat` with `proxy.ts`. Next.js 16 renamed `middleware` to `proxy`; see `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
-- [ ] **Schema and migrations.** Create `learner_profiles` (with `user_id`), `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`, `sessions`, `session_turns` and `voice_usage`, following [roadmap.md](./roadmap.md#phase-2--weeks-13-accounts-learner-model-measurement). Add a server-only `lib/db.ts`.
-- [ ] **Delete account.** A settings action that removes the user and cascades through every table. Add a test that checks no rows remain.
+- [ ] **Schema and migrations.** Create `learner_profiles` (with a nullable `user_id` for login later), `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`, `sessions`, `session_turns` and `voice_usage`, following [roadmap.md](./roadmap.md#phase-2--weeks-13-learner-model-and-measurement). Add a server-only `lib/db.ts`.
+- [ ] **Anonymous learner ID.** A server-only `lib/learner.ts` that reads the `learner_id` cookie (httpOnly, `SameSite=Lax`, `Secure` in production), or creates a `learner_profiles` row and sets the cookie if there isn't one. `/api/chat` and every later data route get the learner from here, never from the request body.
+- [ ] **Delete my data.** A settings action that deletes the learner row (cascading through every table) and clears the cookie. Add a test that checks no rows remain.
+- [ ] **Optional `ACCESS_CODE` gate.** In `proxy.ts`, if `ACCESS_CODE` is set, require it once (stored in a cookie) before serving `/practice` and `/api/chat`. Skip this while running only on localhost. Next.js 16 renamed `middleware` to `proxy`; see `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
 
-Done when: a signed-out request to `/api/chat` gets a 401, and creating then deleting an account leaves no rows behind.
+Done when: a first visit creates exactly one learner row, a reload reuses it, and deleting your data leaves no rows behind.
 
 #### Week 2: Saved sessions and measurement
 
@@ -78,7 +79,7 @@ Done when: a signed-out request to `/api/chat` gets a 401, and creating then del
 - [ ] **Split `Conversation.tsx`.** Move the audio and turn state machine into a hook (for example `useConversation`) and keep the component for layout. Replace raw hex values with `DESIGN.md` tokens while you're there.
 - [ ] **Evaluation harness skeleton.** A `scripts/eval` entry point, a golden-set file format (`input`, `expected_edits`, `is_error_free`) and a report of over-correction rate and edit counts. It can start with 10 hand-written sentences.
 
-Done when: a reload shows the same conversation, every turn has latency numbers, and `npm run eval` prints a report.
+Done when: a reload shows the same conversation, every turn has latency numbers, and `pnpm eval` prints a report.
 
 #### Week 3: Learner model and placement
 
@@ -88,19 +89,19 @@ Done when: a reload shows the same conversation, every turn has latency numbers,
 - [ ] **Learner summary.** After a session ends, use `after()` to build `compact_tutor_summary` (under 250 tokens) from the profile and transcript. Change `getSystemPrompt(scenarioId)` to `getSystemPrompt(scenarioId, learner)` so it includes CEFR level, native language and summary.
 - [ ] **Level-aware prompt rules.** Add the A1–A2 / B1 / B2+ rules from the research to `lib/prompts.ts`, keeping the current "no lecture, no correction lists" rules.
 
-Done when: a new user completes placement, finishes one session, and their next session's system prompt includes their level and a summary under 250 tokens (checked on 20 test profiles).
+Done when: a new learner completes placement, finishes one session, and their next session's system prompt includes their level and a summary under 250 tokens (checked on 20 test profiles).
 
 ### Phase 2 exit check
 
-- [ ] Transcripts persist across reloads and devices.
+- [ ] Transcripts persist across reloads in the same browser.
 - [ ] Placement finishes in 6 turns or fewer.
 - [ ] The summary stays under 250 tokens on 20 test profiles.
-- [ ] Account deletion leaves no rows (test passes).
+- [ ] "Delete my data" leaves no rows (test passes).
 - [ ] Latency is logged on every turn, and a baseline p50/p90 is written into this page.
 
 ## After Phase 2
 
-Phases 3–5 are in [roadmap.md](./roadmap.md). Before starting Phase 3, update this page: move finished items into **Current status**, and break Phase 3 into weekly tasks the same way.
+Phases 3–5, and the login work required before public launch, are in [roadmap.md](./roadmap.md). Before starting Phase 3, update this page: move finished items into **Current status**, and break Phase 3 into weekly tasks the same way.
 
 ## Notes
 

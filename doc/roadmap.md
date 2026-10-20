@@ -1,10 +1,12 @@
 # Roadmap
 
-This is the plan for the next 12 weeks of Fluency. It revises the MVP plan in `AI Language Fluency App Research.pdf` to fit the app that already exists and to fix gaps in the original plan.
+This is the plan for the next 12 weeks of Fluency. It revises the MVP plan in the research PDF (kept locally in `research/`, which is gitignored) to fit the app that already exists and to fix gaps in the original plan.
 
 ## What it is
 
-A four-phase plan that takes Fluency from a stateless web app for practicing English to an MVP with accounts, post-session feedback, flashcards, a low-latency voice tutor with pronunciation scoring, and role-plays. Phases 0 and 1 are already built (see [features.md](./features.md)), so this plan starts at Phase 2.
+A four-phase plan that takes Fluency from a stateless web app for practicing English to an MVP with a saved learner model, post-session feedback, flashcards, a low-latency voice tutor with pronunciation scoring, and role-plays. Phases 0 and 1 are already built (see [features.md](./features.md)), so this plan starts at Phase 2.
+
+The MVP is feature-complete but private: for you and invited testers, not the public. Login, authorization and paid plans come after the MVP, before public launch.
 
 ## Ground rules
 
@@ -15,21 +17,23 @@ These decisions apply to every phase. They are the main ways this plan differs f
 - **The live turn only talks; feedback happens after the session.** The fast model in the voice loop writes the reply and nothing else. Grammar correction runs on the saved transcript with the feedback model (`CLAUDE_MODELS.feedback` in `lib/anthropic.ts`). This keeps latency low and puts correction on a model strong enough to do it with high precision.
 - **Correct only real errors (precision first).** Never set a target error count in a prompt. At least 40% of few-shot examples are error-free and map to `edits: []`. Every correction has two tracks: `minimal_correction` (only real errors) and `fluency_upgrade` (optional, labeled as style).
 - **Measure from week 1.** The evaluation harness and latency tracking ship in Phase 2, not later. Each phase gate below assumes they exist.
-- **Costs and compliance ship with the feature that creates them.** The voice quota ships with voice. Consent ships before audio is stored. Account deletion ships with the schema.
+- **No login in the MVP; anonymous learners instead.** On first visit the server sets a random `learner_id` in an httpOnly cookie, and every table keys on it. Adding login later means linking that `learner_id` to an account. The schema doesn't change. Until then, a learner's data lives in one browser, and clearing cookies starts a new learner.
+- **Costs and compliance ship with the feature that creates them.** The voice quota ships with voice. Consent ships before audio is stored. "Delete my data" ships with the schema.
 - **Test vendors before relying on their numbers.** The text-to-speech ranking in the research comes from one vendor's own site, and the over-correction numbers come from Finnish and Ukrainian correction papers. Phase 4 starts by testing both on our own data.
 
-## Phase 2 — Weeks 1–3: Accounts, learner model, measurement
+## Phase 2 — Weeks 1–3: Learner model and measurement
 
-Fluency remembers who you are and what you said.
+Fluency remembers you and what you said.
 
 ### Engineering
 
-- Accounts with sign-up and sign-in. Every later feature needs a user.
-- Managed Postgres with the four tables from the research (`learner_profiles`, `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`), plus:
-  - a `user_id` link from `learner_profiles` to the auth user;
+- Anonymous learner ID: created on first visit, stored in an httpOnly, `SameSite=Lax` cookie, and read on the server for every request.
+- Postgres with the four tables from the research (`learner_profiles`, `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`), plus:
+  - a nullable `user_id` on `learner_profiles`, empty until login exists;
   - `sessions` and `session_turns` tables for saved transcripts;
   - a `voice_usage` table keyed by `(learner_id, day)`. This replaces `daily_free_voice_seconds_used`, which has no reset date.
-- Delete account: one action that cascades through every learner table. The schema's `ON DELETE CASCADE` makes this cheap now and expensive to add later.
+- "Delete my data": one action that removes the learner and cascades through every learner table, then clears the cookie. The schema's `ON DELETE CASCADE` makes this cheap now and expensive to add later.
+- Optional access gate for private testing: if `ACCESS_CODE` is set, `proxy.ts` asks for it before serving `/practice` or `/api/chat`. This isn't login. It only stops strangers from spending the API key if the app is deployed.
 - Background jobs (saving turns, building summaries) run in `after()` from `next/server`. A separate long-running worker is only needed in Phase 4, for the voice agent.
 - Latency tracking on the existing `/api/chat` path: time to first token and time to first audio, logged per turn.
 - Evaluation harness skeleton: a script that runs prompts against a golden set and reports scores. It must exist before any correction prompt does.
@@ -43,10 +47,10 @@ Fluency remembers who you are and what you said.
 
 ### Exit gate
 
-- Transcripts persist across reloads and devices.
+- Transcripts persist across reloads in the same browser.
 - Placement finishes in 6 turns or fewer and writes a CEFR level.
 - The learner summary stays under 250 tokens on 20 test profiles.
-- Delete account removes every row for that learner (checked by a test).
+- "Delete my data" removes every row for that learner (checked by a test).
 
 ## Phase 3 — Weeks 4–6: Post-session feedback, flashcards, writing
 
@@ -93,8 +97,8 @@ Talk to Fluency with replies under a second, and get pronunciation feedback afte
 - The voice agent runs in the worker, not in a Next.js route. WebRTC sessions are long-lived.
 - The voice is chosen **in code from the CEFR level**, not from a field in the model's output. The model's text has to reach text-to-speech before a trailing JSON field could be read.
 - Copy each learner turn's audio to an Azure pronunciation job (16 kHz, 16-bit mono PCM, `Granularity.Phoneme`, prosody on). Gather at least 20 s / 50 words / 3 sentences before scoring. The live turn never waits on Azure.
-- **Voice quota ships here**: a per-day counter in `voice_usage`, checked when a session starts and on every turn. Add Redis only if Postgres can't keep up.
-- **Audio consent ships here**: explicit opt-in before any raw audio is stored. Audio is never sent to voice-cloning endpoints. Deleting an account also deletes stored audio.
+- **Voice quota ships here**: a per-day counter in `voice_usage`, checked when a session starts and on every turn. Add Redis only if Postgres can't keep up. Without login, clearing cookies resets the quota. That's acceptable for private testing; login closes the gap before launch.
+- **Audio consent ships here**: explicit opt-in before any raw audio is stored. Audio is never sent to voice-cloning endpoints. "Delete my data" also deletes stored audio.
 
 ### Learning and AI
 
@@ -108,14 +112,13 @@ Talk to Fluency with replies under a second, and get pronunciation feedback afte
 - Zero voice turns blocked on pronunciation scoring.
 - Quota and consent checked by tests.
 
-## Phase 5 — Weeks 10–12: Role-plays, Gentle Mode, launch
+## Phase 5 — Weeks 10–12: Role-plays, Gentle Mode, MVP complete
 
-Fluency becomes a product you can open every day.
+Fluency becomes something you can open every day.
 
 ### Engineering
 
 - Role-play state machine with goals (`criteria_met_count` / `criteria_total_count`), built on top of `lib/scenarios.ts`.
-- Free tier and paid tier gating on top of the Phase 4 quota.
 - Progress view: CEFR level over time and resolved error streaks.
 
 ### Learning and AI
@@ -127,11 +130,20 @@ Fluency becomes a product you can open every day.
 
 ### Exit gate
 
-- The free-tier cap holds under a load test.
-- Account deletion and audio deletion verified end to end.
-- Cost per 10-minute voice session measured in production and compared with the research's estimate of $0.14–$0.27.
+- The daily voice cap holds under a load test.
+- "Delete my data", including audio, verified end to end.
+- Cost per 10-minute voice session measured with testers and compared with the research's estimate of $0.14–$0.27.
 
 ## After the MVP
+
+### Before public launch (required)
+
+- **Login and authorization.** Sign-up and sign-in. On first sign-in, link the browser's anonymous `learner_id` to the new account (set `user_id`), so testers keep their history. Protect `/practice`, `/api/chat` and every data route with `proxy.ts`, and check on the server that each read and write belongs to the signed-in learner.
+- **Replace the `ACCESS_CODE` gate** with real auth.
+- **Free and paid tiers**, enforced per account rather than per cookie.
+- **Privacy policy and consent text** reviewed for public users.
+
+### Later
 
 - en → es direction: Spanish golden set, en → es pronunciation patterns (tap /ɾ/ vs. trill /r/, dropped final /r/, aspirated stops, missing [β ð ɣ], /ɲ/ split into /n+j/, diphthongs split into two syllables), and the bilingual code-switching voice.
 - Expo mobile app.
@@ -146,7 +158,8 @@ These are choices the plan doesn't make. Each one needs an owner before the phas
 | Decision | Default in this plan | Needed by |
 | --- | --- | --- |
 | Free-tier size. The research says both "three 5-minute sessions" (15 min) and "5 minutes/day". | 5 minutes/day, as three short sessions of 4 turns | Phase 4 |
-| Auth provider and Postgres host | Any managed option that works with Next.js | Phase 2, week 1 |
+| Postgres host and database library (ORM or migration tool) | Any managed option that works with Next.js | Phase 2, week 1 |
+| Auth provider | Deferred until after the MVP | Before public launch |
 | Team size, which sets the voice path | Solo path (LiveKit Cloud + Deepgram Voice Agent) | Phase 4, week 7 |
 | Text-to-speech vendor | Decided by the week 7 A/B test | Phase 4, week 7 |
 
