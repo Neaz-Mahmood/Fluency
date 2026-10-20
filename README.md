@@ -36,6 +36,8 @@ Then run the app:
 pnpm dev
 ```
 
+Tests: `pnpm test` runs the unit tests. `pnpm test:db` runs the database tests against a separate `fluency_test` database (created and migrated automatically; needs `pnpm db:up`).
+
 Other database scripts: `pnpm db:generate` (create a migration after changing `lib/db/schema.ts`), `pnpm db:studio` (browse data) and `pnpm db:down` (stop the database, keeping its data).
 
 Open [http://localhost:3000](http://localhost:3000), then go to Practice. Speech recognition works in Chrome. Typing works in every browser.

@@ -1,6 +1,7 @@
 import { streamClaudeReply } from "@/lib/anthropic";
 import { parseChatRequest } from "@/lib/chat-request";
 import { streamGoogleReply } from "@/lib/google";
+import { getLearner } from "@/lib/learner";
 import { getSystemPrompt } from "@/lib/prompts";
 import { resolveProvider } from "@/lib/provider";
 
@@ -20,6 +21,16 @@ export async function POST(request: Request) {
   const selected = resolveProvider();
   if ("error" in selected) {
     return Response.json({ error: selected.error }, { status: 503 });
+  }
+
+  try {
+    await getLearner();
+  } catch (error) {
+    console.error("Could not load the learner.", error);
+    return Response.json(
+      { error: "Fluency can't load your profile right now. Try again in a moment." },
+      { status: 503 },
+    );
   }
 
   const reply =

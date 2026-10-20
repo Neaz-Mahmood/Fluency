@@ -12,7 +12,26 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", ".next/**"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["**/*.test.ts"],
+          exclude: ["**/*.db.test.ts", "node_modules/**", ".next/**"],
+        },
+      },
+      {
+        // Needs the local database: `pnpm db:up`. Uses a separate fluency_test database.
+        extends: true,
+        test: {
+          name: "db",
+          include: ["**/*.db.test.ts"],
+          exclude: ["node_modules/**", ".next/**"],
+          globalSetup: ["./test/db-global-setup.ts"],
+          fileParallelism: false,
+        },
+      },
+    ],
   },
 });
