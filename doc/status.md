@@ -55,7 +55,7 @@ Tasks are in order. Each one lists the files it touches and what "done" means.
 - [x] **Set up git.** Done: the repo is on GitHub (`origin/main`), `.env` is ignored and not committed, and work continues on `feat/v1`.
 - [x] **Pick one package manager.** Done: pnpm (`packageManager: pnpm@11.25.0`). `package-lock.json` is deleted and `README.md` uses `pnpm install` / `pnpm dev`.
 - [x] **Add a test runner.** Done: Vitest (`vitest.config.mts`) with `pnpm test` and `pnpm test:watch`. `lib/chat-request.test.ts` and `lib/provider.test.ts` cover every error branch (23 tests). The config stubs `server-only` so server modules can be imported in tests.
-- [ ] **Choose the Postgres host and database library** (ORM or migration tool). See [roadmap.md](./roadmap.md#open-decisions). Login (email/password and Google) is built last, in Phase 5, so the auth library can wait. It must work with whatever database you pick here.
+- [x] **Choose the Postgres host and database library.** Done: Postgres + Drizzle, running locally in Docker (`docker-compose.yml`, `pnpm db:up`). The managed host for test deploys gets picked at first deploy (Neon or Supabase). See [roadmap.md](./roadmap.md#open-decisions). Login (email/password and Google) is built last, in Phase 5, so the auth library can wait. It must work with whatever database you pick here.
 
 Done when: the repo has history, `pnpm test` passes, and the database is chosen.
 
@@ -63,7 +63,7 @@ Done when: the repo has history, `pnpm test` passes, and the database is chosen.
 
 #### Week 1: Anonymous learners and the database
 
-- [ ] **Schema and migrations.** Create `learner_profiles` (with a nullable `user_id` for login later), `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`, `sessions`, `session_turns` and `voice_usage`, following [roadmap.md](./roadmap.md#phase-2--weeks-13-learner-model-and-measurement). Add a server-only `lib/db.ts`.
+- [x] **Schema and migrations.** Done: all seven tables in `lib/db/schema.ts`, migration `drizzle/0000_learner_schema.sql`, client in `lib/db.ts`. Every table cascades from `learner_profiles`. `native_language` and the CEFR levels stay null until onboarding and placement.
 - [ ] **Anonymous learner ID.** A server-only `lib/learner.ts` that reads the `learner_id` cookie (httpOnly, `SameSite=Lax`, `Secure` in production), or creates a `learner_profiles` row and sets the cookie if there isn't one. `/api/chat` and every later data route get the learner from here, never from the request body. This is the only place Phase 5 login has to change.
 - [ ] **Delete my data.** A settings action that deletes the learner row (cascading through every table) and clears the cookie. Add a test that checks no rows remain.
 - [ ] **Optional `ACCESS_CODE` gate.** In `proxy.ts`, if `ACCESS_CODE` is set, require it once (stored in a cookie) before serving `/practice` and `/api/chat`. Skip this while running only on localhost. Next.js 16 renamed `middleware` to `proxy`; see `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/proxy.md`.
