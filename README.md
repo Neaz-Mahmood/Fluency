@@ -23,9 +23,20 @@ GOOGLE_API_KEY=your_google_key
 
 If only one key is set, Fluency uses that provider. If both keys are set, choose one with `AI_PROVIDER=claude` or `AI_PROVIDER=google`. `ANTHROPIC_API_KEY` is accepted as the Claude key.
 
+Start the local database (needs Docker) and apply migrations. `DATABASE_URL` in `.env.example` already matches it.
+
+```bash
+pnpm db:up
+pnpm db:migrate
+```
+
+Then run the app:
+
 ```bash
 pnpm dev
 ```
+
+Other database scripts: `pnpm db:generate` (create a migration after changing `lib/db/schema.ts`), `pnpm db:studio` (browse data) and `pnpm db:down` (stop the database, keeping its data).
 
 Open [http://localhost:3000](http://localhost:3000), then go to Practice. Speech recognition works in Chrome. Typing works in every browser.
 
