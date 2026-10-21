@@ -42,7 +42,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 5. ~~**Everything is in memory.**~~ Fixed: turns are saved (FLU-22) and a reload loads them back from the database (FLU-23).
 6. ~~**No latency numbers.**~~ Fixed: server time to first token and client time to first audio are recorded per assistant turn in `session_turns` (FLU-25).
 7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`. Fixed for the UI (FLU-29): Bangla speakers see Bangla UI text; `/api/chat` error messages, the nav, settings, history list and the partner's replies stay English.
-8. **The prompt is the same for every learner.** `getSystemPrompt(scenarioId)` has no input for CEFR level or a learner summary.
+8. ~~**The prompt is the same for every learner.**~~ Fixed: `getSystemPrompt(scenarioId, learner)` adapts to the learner's CEFR speaking level, native language, and compact tutor summary (FLU-32).
 9. ~~**`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`.~~ Fixed: state machine moved to `hooks/useConversation.ts` and hex colors replaced with design tokens (FLU-26).
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
 
@@ -101,7 +101,7 @@ Done when: a reload shows the same conversation, every turn has latency numbers,
 - [x] **Bangla UI strings.** Done (FLU-29): the home page, scenario picker, practice controls, transcript and speech/error messages come from an English or Bangla dictionary in `lib/messages.ts`, picked by the learner's native language.
 - [x] **Placement chat.** Done (FLU-30). A 6-question diagnostic chat at `/placement` estimates provisional speaking and writing CEFR levels using the feedback model.
 - [ ] **Learner summary.** After a session ends, use `after()` to build `compact_tutor_summary` (under 250 tokens) from the profile and transcript. Change `getSystemPrompt(scenarioId)` to `getSystemPrompt(scenarioId, learner)` so it includes CEFR level, native language and summary.
-- [ ] **Level-aware prompt rules.** Add the A1–A2 / B1 / B2+ rules from the research to `lib/prompts.ts`, keeping the current "no lecture, no correction lists" rules.
+- [x] **Level-aware prompt rules.** Done (FLU-32): added level-specific scaffolding rules for A1–C2, native-language support for A1–B1, and learner summaries to `lib/prompts.ts`.
 
 Done when: a new learner completes placement, finishes one session, and their next session's system prompt includes their level and a summary under 250 tokens (checked on 20 test profiles).
 

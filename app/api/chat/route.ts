@@ -75,7 +75,7 @@ export async function POST(request: Request) {
   const system =
     parsed.mode === "placement"
       ? getPlacementPrompt(answers)
-      : getSystemPrompt(parsed.scenarioId);
+      : getSystemPrompt(parsed.scenarioId, learner);
 
   const reply = streamReply(selected, { system, messages });
 

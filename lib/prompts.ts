@@ -1,7 +1,14 @@
 import "server-only";
 
+import type { LearnerProfile } from "@/lib/db/schema";
+import { nativeLanguageName } from "@/lib/languages";
 import { PLACEMENT_MAX_ANSWERS } from "@/lib/placement";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
+
+export type PromptLearner = Pick<
+  LearnerProfile,
+  "cefrSpeaking" | "nativeLanguage" | "compactTutorSummary"
+>;
 
 const BASE_PROMPT = `You are Fluency, a patient English conversation partner. The learner is practicing spoken English with you.
 
@@ -24,9 +31,59 @@ const SCENARIO_PROMPTS: Record<ScenarioId, string> = {
     "Scenario: you just met the learner in the hallway of an apartment building. Introduce yourself once, then make light small talk about the building, the neighborhood, or the weekend.",
 };
 
-export function getSystemPrompt(scenarioId: string): string {
+function getLevelBlock(
+  level: PromptLearner["cefrSpeaking"],
+  nativeLanguage: PromptLearner["nativeLanguage"],
+): string | null {
+  if (!level) return null;
+  const native = nativeLanguageName(nativeLanguage);
+
+  switch (level) {
+    case "A1":
+    case "A2": {
+      const bullets = ["- Use short, high-frequency sentences and speak slowly and simply."];
+      if (native) {
+        bullets.push(
+          `- If the learner is stuck, asks what a word means, or asks how to say something, help briefly in ${native}, then continue in English. It is fine if they mix in ${native}.`,
+        );
+      }
+      return `Learner level: ${level} (beginner).\n${bullets.join("\n")}`;
+    }
+    case "B1": {
+      const bullets = ["- Speak English almost all the time."];
+      if (native) {
+        bullets.push(
+          `- Use ${native} only to clear up a confusing word or a tricky tense contrast (for example, present perfect vs. simple past), in one short sentence.`,
+        );
+      }
+      return `Learner level: B1 (intermediate).\n${bullets.join("\n")}`;
+    }
+    case "B2":
+    case "C1":
+    case "C2":
+      return `Learner level: ${level} (advanced).\n- Speak only English, including any explanation.\n- Use natural collocations, idioms and register, and match the learner's pace.`;
+    default:
+      return null;
+  }
+}
+
+function getSummaryBlock(summary: string): string | null {
+  const trimmed = summary.trim();
+  if (!trimmed) return null;
+  return `What you know about this learner from earlier sessions (use it naturally, do not recite it):\n${trimmed}`;
+}
+
+export function getSystemPrompt(scenarioId: string, learner: PromptLearner): string {
   const id: ScenarioId = isScenarioId(scenarioId) ? scenarioId : "free-chat";
-  return `${BASE_PROMPT}\n\n${SCENARIO_PROMPTS[id]}`;
+  const blocks = [BASE_PROMPT, SCENARIO_PROMPTS[id]];
+
+  const levelBlock = getLevelBlock(learner.cefrSpeaking, learner.nativeLanguage);
+  if (levelBlock) blocks.push(levelBlock);
+
+  const summaryBlock = getSummaryBlock(learner.compactTutorSummary);
+  if (summaryBlock) blocks.push(summaryBlock);
+
+  return blocks.join("\n\n");
 }
 
 const PLACEMENT_PROMPT = `You are Fluency, running a short English placement chat with a new learner. Your job is to hear enough of their English to estimate their level.
