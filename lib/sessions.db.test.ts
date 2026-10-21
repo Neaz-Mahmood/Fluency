@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sessions, sessionTurns } from "@/lib/db/schema";
 import { ensureLearnerProfile } from "@/lib/learner";
 import { newLearnerId } from "@/lib/learner-id";
-import { resolveSession, saveExchange } from "@/lib/sessions";
+import { findOpenSession, loadTurns, saveExchange, startSession } from "@/lib/sessions";
 import { createTestDb, resetTestDb } from "@/test/db";
 
 const db = createTestDb();
@@ -34,83 +34,77 @@ async function turnsOf(sessionId: string) {
     .orderBy(asc(sessionTurns.position));
 }
 
-describe("resolveSession", () => {
-  it("starts a session on the first turn", async () => {
+describe("startSession", () => {
+  it("starts a conversation session for the learner", async () => {
     const learnerId = await newLearner();
-    const session = await resolveSession(db, { learnerId, scenarioId: "cafe" });
+    const session = await startSession(db, { learnerId, scenarioId: "cafe" });
     expect(session).toMatchObject({ learnerId, scenarioId: "cafe", mode: "conversation" });
   });
+});
 
-  it("reuses the learner's own session for the same scenario", async () => {
+describe("findOpenSession", () => {
+  it("finds the learner's own session, with or without the scenario", async () => {
     const learnerId = await newLearner();
-    const first = await resolveSession(db, { learnerId, scenarioId: "cafe" });
-    const again = await resolveSession(db, {
-      learnerId,
-      scenarioId: "cafe",
-      sessionId: first.sessionId,
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+
+    expect(await findOpenSession(db, { learnerId, sessionId, scenarioId: "cafe" })).toMatchObject({
+      sessionId,
     });
-    expect(again.sessionId).toBe(first.sessionId);
-    expect(await db.select().from(sessions)).toHaveLength(1);
+    expect(await findOpenSession(db, { learnerId, sessionId })).toMatchObject({ sessionId });
   });
 
-  it("never reuses another learner's session", async () => {
+  it("never finds another learner's session", async () => {
     const owner = await newLearner();
     const intruder = await newLearner();
-    const theirs = await resolveSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
 
-    const mine = await resolveSession(db, {
-      learnerId: intruder,
-      scenarioId: "cafe",
-      sessionId: theirs.sessionId,
-    });
-
-    expect(mine.sessionId).not.toBe(theirs.sessionId);
-    expect(mine.learnerId).toBe(intruder);
+    expect(await findOpenSession(db, { learnerId: intruder, sessionId })).toBeNull();
   });
 
-  it("starts a new session when the scenario changes", async () => {
+  it("ignores a session for another scenario", async () => {
     const learnerId = await newLearner();
-    const cafe = await resolveSession(db, { learnerId, scenarioId: "cafe" });
-    const interview = await resolveSession(db, {
-      learnerId,
-      scenarioId: "job-interview",
-      sessionId: cafe.sessionId,
-    });
-    expect(interview.sessionId).not.toBe(cafe.sessionId);
-    expect(interview.scenarioId).toBe("job-interview");
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+
+    expect(
+      await findOpenSession(db, { learnerId, sessionId, scenarioId: "job-interview" }),
+    ).toBeNull();
   });
 
-  it("starts a new session when the old one has ended", async () => {
+  it("ignores a session that has ended", async () => {
     const learnerId = await newLearner();
-    const old = await resolveSession(db, { learnerId, scenarioId: "cafe" });
-    await db
-      .update(sessions)
-      .set({ endedAt: new Date() })
-      .where(eq(sessions.sessionId, old.sessionId));
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    await db.update(sessions).set({ endedAt: new Date() }).where(eq(sessions.sessionId, sessionId));
 
-    const next = await resolveSession(db, {
-      learnerId,
-      scenarioId: "cafe",
-      sessionId: old.sessionId,
-    });
-    expect(next.sessionId).not.toBe(old.sessionId);
+    expect(await findOpenSession(db, { learnerId, sessionId })).toBeNull();
   });
 
-  it("starts a new session for an unknown session id", async () => {
+  it("returns null for an unknown session id", async () => {
     const learnerId = await newLearner();
-    const session = await resolveSession(db, {
-      learnerId,
-      scenarioId: "cafe",
-      sessionId: newLearnerId(),
-    });
-    expect(session.learnerId).toBe(learnerId);
+    expect(await findOpenSession(db, { learnerId, sessionId: newLearnerId() })).toBeNull();
+  });
+});
+
+describe("loadTurns", () => {
+  it("returns the saved turns in order", async () => {
+    const learnerId = await newLearner();
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    await saveExchange(db, { sessionId, userText: "Hi", inputMode: "voice", replyText: "Hello!" });
+    await saveExchange(db, { sessionId, userText: "A latte.", inputMode: "typed", replyText: "" });
+
+    const turns = await loadTurns(db, sessionId);
+    expect(turns.map(({ role, content }) => ({ role, content }))).toEqual([
+      { role: "user", content: "Hi" },
+      { role: "assistant", content: "Hello!" },
+      { role: "user", content: "A latte." },
+    ]);
+    expect(new Set(turns.map((turn) => turn.id)).size).toBe(3);
   });
 });
 
 describe("saveExchange", () => {
   it("appends the learner's turn and the reply in order", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await resolveSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
 
     await saveExchange(db, { sessionId, userText: "Hi", inputMode: "voice", replyText: "Hello! " });
     await saveExchange(db, {
@@ -130,7 +124,7 @@ describe("saveExchange", () => {
 
   it("saves only the learner's turn when the reply is empty", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await resolveSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
 
     await saveExchange(db, { sessionId, userText: "Hi", inputMode: null, replyText: "  " });
 
@@ -141,7 +135,7 @@ describe("saveExchange", () => {
 
   it("gives concurrent saves distinct positions", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await resolveSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
 
     await Promise.all(
       Array.from({ length: 5 }, (_, index) =>

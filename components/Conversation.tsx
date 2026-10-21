@@ -16,13 +16,20 @@ type Turn = {
   content: string;
 };
 
+// A conversation loaded from the database, so a reload picks up where it left off.
+export type SavedConversation = {
+  sessionId: string;
+  scenarioId: ScenarioId;
+  turns: Turn[];
+};
+
 type Status = "idle" | "listening" | "thinking" | "speaking";
 
 const HOLD_THRESHOLD_MS = 280;
 
-export function Conversation() {
-  const [scenarioId, setScenarioId] = useState<ScenarioId | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
+export function Conversation({ saved }: { saved: SavedConversation | null }) {
+  const [scenarioId, setScenarioId] = useState<ScenarioId | null>(saved?.scenarioId ?? null);
+  const [turns, setTurns] = useState<Turn[]>(saved?.turns ?? []);
   const [status, setStatus] = useState<Status>("idle");
   const [interim, setInterim] = useState("");
   const [draft, setDraft] = useState("");
@@ -40,11 +47,11 @@ export function Conversation() {
   );
 
   const statusRef = useRef<Status>("idle");
-  const turnsRef = useRef<Turn[]>([]);
+  const turnsRef = useRef<Turn[]>(saved?.turns ?? []);
   const handsFreeRef = useRef(false);
   const sessionRef = useRef<ListeningSession | null>(null);
   // The saved conversation, from the X-Session-Id header of the first reply.
-  const chatSessionIdRef = useRef<string | null>(null);
+  const chatSessionIdRef = useRef<string | null>(saved?.sessionId ?? null);
   const cancelSpeechRef = useRef<(() => void) | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const turnToken = useRef(0);
@@ -171,10 +178,7 @@ export function Conversation() {
             scenarioId,
             sessionId: chatSessionIdRef.current ?? undefined,
             inputMode,
-            messages: history.map(({ role, content: turnContent }) => ({
-              role,
-              content: turnContent,
-            })),
+            message: content,
           }),
         });
       } catch (caughtFetch) {
@@ -192,7 +196,12 @@ export function Conversation() {
         throw new Error(payload?.error ?? "The conversation partner could not reply.");
       }
 
-      chatSessionIdRef.current = response.headers.get("X-Session-Id") ?? chatSessionIdRef.current;
+      const sessionId = response.headers.get("X-Session-Id");
+      if (sessionId) {
+        chatSessionIdRef.current = sessionId;
+        // Keeps the session in the URL so a reload loads it (app/practice/page.tsx).
+        window.history.replaceState(null, "", `?session=${sessionId}`);
+      }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error("The conversation partner could not reply.");
@@ -355,6 +364,7 @@ export function Conversation() {
             interrupt();
             setTurns([]);
             chatSessionIdRef.current = null;
+            window.history.replaceState(null, "", "/practice");
             setScenarioId(null);
           }}
         >

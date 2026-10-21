@@ -25,13 +25,13 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 
 ### Health checks
 
-| Check           | Result                                                                                                                                                                                |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tsc --noEmit`  | Passes                                                                                                                                                                                |
-| `eslint .`      | Passes, no warnings                                                                                                                                                                   |
-| `next build`    | Passes. `/api/chat` is dynamic; `/` and `/practice` are static.                                                                                                                       |
-| Automated tests | `pnpm test`: 84 unit tests (request validation, provider selection, learner id, proxy, provider errors, reply time limits). `pnpm test:db`: 21 database tests against `fluency_test`. |
-| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`.                                                                                                                             |
+| Check           | Result                                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tsc --noEmit`  | Passes                                                                                                                                                                                            |
+| `eslint .`      | Passes, no warnings                                                                                                                                                                               |
+| `next build`    | Passes. `/api/chat` is dynamic; `/` and `/practice` are static.                                                                                                                                   |
+| Automated tests | `pnpm test`: 87 unit tests (request validation and history, provider selection, learner id, proxy, provider errors, reply time limits). `pnpm test:db`: 22 database tests against `fluency_test`. |
+| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`.                                                                                                                                         |
 
 ### Gaps and risks in the current code
 
@@ -39,7 +39,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 2. **`/api/chat` is open.** Login is built last (end of Phase 5), so the route stays open until then. Run the app locally, or set the optional `ACCESS_CODE` gate (Week 1) before deploying it anywhere testers can reach. Otherwise anyone with the URL can spend the API key.
 3. ~~**Two lockfiles.**~~ Fixed: pnpm only.
 4. ~~**No tests.**~~ Fixed for the pure server modules. The UI and the streaming route still have no tests.
-5. **Everything is in memory.** Transcripts live in `Conversation` component state and disappear on reload. The learner model, flashcards and the recap all depend on saved transcripts.
+5. ~~**Everything is in memory.**~~ Fixed: turns are saved (FLU-22) and a reload loads them back from the database (FLU-23).
 6. **No latency numbers.** Phase 4's p50/p90 gate needs a baseline, and nothing is measured today.
 7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`, and an English-only UI. That's fine for es → en as long as the native language is stored, but A1 learners need Spanish UI text.
 8. **The prompt is the same for every learner.** `getSystemPrompt(scenarioId)` has no input for CEFR level or a learner summary.
@@ -73,7 +73,7 @@ Done when: a first visit creates exactly one learner row, a reload reuses it, an
 #### Week 2: Saved sessions and measurement
 
 - [x] **Save sessions.** Done (FLU-22). A session is created on the first message, not when a scenario is picked, so browsing scenarios leaves no empty sessions. The server returns its id in `X-Session-Id`, and the client sends it back. `resolveSession()` only reuses a session that belongs to this learner and scenario. `after()` waits for the stream to end and saves the user turn (with `inputMode`) and the reply in one locked transaction. See `doc/api.md`.
-- [ ] **Load from the database.** Read history from the database instead of trusting the client's `messages` array. Keep `parseChatRequest` for validating the new turn.
+- [x] **Load from the database.** Done (FLU-23). The client sends only the new `message`; the route builds the history from `session_turns` with `buildHistory()`. `/practice?session=<id>` reloads the conversation from the database, for the learner's own open sessions only.
 - [ ] **Session history page.** List past sessions and open a read-only transcript.
 - [ ] **Latency logging.** Server: time to first token per turn in `route.ts`. Client: time from send to `speakText` `onStart` in `Conversation.tsx`. Store both per turn in `session_turns`.
 - [ ] **Split `Conversation.tsx`.** Move the audio and turn state machine into a hook (for example `useConversation`) and keep the component for layout. Replace raw hex values with `DESIGN.md` tokens while you're there.

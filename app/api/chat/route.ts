@@ -1,7 +1,7 @@
 import { after } from "next/server";
 
 import { OPENCODE_BASE_URL, streamClaudeReply } from "@/lib/anthropic";
-import { parseChatRequest } from "@/lib/chat-request";
+import { buildHistory, parseChatRequest, type ChatTurn } from "@/lib/chat-request";
 import { getDb } from "@/lib/db";
 import type { LearnerProfile, Session } from "@/lib/db/schema";
 import { streamGoogleReply } from "@/lib/google";
@@ -10,7 +10,7 @@ import { getSystemPrompt } from "@/lib/prompts";
 import { resolveProvider } from "@/lib/provider";
 import { providerErrorResponse, toProviderError } from "@/lib/provider-errors";
 import { startReply, type StartedReply } from "@/lib/reply-stream";
-import { resolveSession, saveExchange } from "@/lib/sessions";
+import { findOpenSession, loadTurns, saveExchange, startSession } from "@/lib/sessions";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -31,14 +31,29 @@ export async function POST(request: Request) {
   }
 
   let learner: LearnerProfile;
+  let existing: Session | null = null;
+  let savedTurns: ChatTurn[] = [];
   try {
     learner = await getLearner();
+    if (parsed.sessionId) {
+      existing = await findOpenSession(getDb(), {
+        learnerId: learner.learnerId,
+        sessionId: parsed.sessionId,
+        scenarioId: parsed.scenarioId,
+      });
+    }
+    if (existing) savedTurns = await loadTurns(getDb(), existing.sessionId);
   } catch (error) {
-    console.error("Could not load the learner.", error);
+    console.error("Could not load the learner or session.", error);
     return Response.json(
       { error: "Fluency can't load your profile right now. Try again in a moment." },
       { status: 503 },
     );
+  }
+
+  const messages = buildHistory(savedTurns, parsed.message);
+  if ("error" in messages) {
+    return Response.json({ error: messages.error }, { status: 400 });
   }
 
   const reply =
@@ -46,13 +61,13 @@ export async function POST(request: Request) {
       ? streamGoogleReply({
           apiKey: selected.apiKey,
           system: getSystemPrompt(parsed.scenarioId),
-          messages: parsed.messages,
+          messages,
         })
       : streamClaudeReply({
           apiKey: selected.apiKey,
           baseURL: selected.provider === "opencode" ? OPENCODE_BASE_URL : undefined,
           system: getSystemPrompt(parsed.scenarioId),
-          messages: parsed.messages,
+          messages,
         });
 
   let started: StartedReply;
@@ -65,13 +80,15 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status });
   }
 
+  // Created only once the reply has started, so a failed first turn leaves no session.
   let session: Session;
   try {
-    session = await resolveSession(getDb(), {
-      learnerId: learner.learnerId,
-      scenarioId: parsed.scenarioId,
-      sessionId: parsed.sessionId,
-    });
+    session =
+      existing ??
+      (await startSession(getDb(), {
+        learnerId: learner.learnerId,
+        scenarioId: parsed.scenarioId,
+      }));
   } catch (error) {
     reply.abort();
     console.error("Could not load the session.", error);
@@ -115,12 +132,11 @@ export async function POST(request: Request) {
     },
   });
 
-  const userText = parsed.messages[parsed.messages.length - 1]!.content;
   after(async () => {
     try {
       await saveExchange(getDb(), {
         sessionId: session.sessionId,
-        userText,
+        userText: parsed.message,
         inputMode: parsed.inputMode ?? null,
         replyText: await replyDone,
       });

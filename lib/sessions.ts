@@ -1,38 +1,46 @@
 import "server-only";
 
-import { and, eq, isNull, max } from "drizzle-orm";
+import { and, asc, eq, isNull, max } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import { sessions, sessionTurns, type Session } from "@/lib/db/schema";
 import type { ScenarioId } from "@/lib/scenarios";
 
-// The session to save this turn into. Reuses the client's session only if it belongs to
-// this learner, is for the same scenario and hasn't ended; otherwise starts a new one.
-// So a client can never write into someone else's session.
-export async function resolveSession(
+// The client's session, only if it belongs to this learner, hasn't ended and (when given)
+// is for the same scenario. So a client can never read or write someone else's session.
+export async function findOpenSession(
   db: Db,
-  options: { learnerId: string; scenarioId: ScenarioId; sessionId?: string },
-): Promise<Session> {
-  if (options.sessionId) {
-    const [existing] = await db
-      .select()
-      .from(sessions)
-      .where(
-        and(
-          eq(sessions.sessionId, options.sessionId),
-          eq(sessions.learnerId, options.learnerId),
-          eq(sessions.scenarioId, options.scenarioId),
-          isNull(sessions.endedAt),
-        ),
-      );
-    if (existing) return existing;
-  }
+  options: { learnerId: string; sessionId: string; scenarioId?: ScenarioId },
+): Promise<Session | null> {
+  const [existing] = await db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.sessionId, options.sessionId),
+        eq(sessions.learnerId, options.learnerId),
+        options.scenarioId ? eq(sessions.scenarioId, options.scenarioId) : undefined,
+        isNull(sessions.endedAt),
+      ),
+    );
+  return existing ?? null;
+}
 
-  const [created] = await db
-    .insert(sessions)
-    .values({ learnerId: options.learnerId, scenarioId: options.scenarioId })
-    .returning();
+export async function startSession(
+  db: Db,
+  options: { learnerId: string; scenarioId: ScenarioId },
+): Promise<Session> {
+  const [created] = await db.insert(sessions).values(options).returning();
   return created!;
+}
+
+// The session's turns in order. Callers must check ownership with findOpenSession first.
+export async function loadTurns(db: Db, sessionId: string) {
+  return db
+    .select({ id: sessionTurns.turnId, role: sessionTurns.role, content: sessionTurns.content })
+    .from(sessionTurns)
+    .where(eq(sessionTurns.sessionId, sessionId))
+    .orderBy(asc(sessionTurns.position));
 }
 
 // Appends the learner's turn and the partner's reply. An empty reply (the provider failed

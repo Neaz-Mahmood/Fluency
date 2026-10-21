@@ -54,4 +54,5 @@ A monotonic `turnToken` ref ensures that responses from a previous turn cannot o
 
 - All side effects (recognition, TTS, fetch) are torn down on unmount via the `useEffect` cleanup.
 - The header shows the active scenario and a "Switch scenario" button that interrupts the current session and returns to the picker.
+- After each reply the URL becomes `/practice?session=<id>` (`history.replaceState`). On a reload, `app/practice/page.tsx` loads that session's turns from the database (only the learner's own open session) and passes them to `Conversation` as `saved`. "Switch scenario" resets the URL to `/practice`.
 - The Stop button is only shown when the conversation is `listening`, `thinking`, or `speaking`.

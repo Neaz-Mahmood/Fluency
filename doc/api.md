@@ -4,7 +4,7 @@ The browser talks to a single streaming endpoint, `POST /api/chat`, which valida
 
 ## What it is
 
-A Next.js Route Handler that accepts a JSON conversation and streams the partner's reply as `text/plain; charset=utf-8`. The handler is server-only — the API keys never reach the browser.
+A Next.js Route Handler that accepts the learner's new message and streams the partner's reply as `text/plain; charset=utf-8`. The handler is server-only — the API keys never reach the browser.
 
 ## Where it lives
 
@@ -15,7 +15,7 @@ lib/provider.ts         # resolveProvider (env-var logic)
 lib/provider-errors.ts  # ProviderError, toProviderError, providerErrorResponse
 lib/reply-stream.ts     # startReply (first-token wait and idle timeout)
 lib/learner.ts          # getLearner (anonymous learner from the cookie)
-lib/sessions.ts         # resolveSession, saveExchange
+lib/sessions.ts         # findOpenSession, startSession, loadTurns, saveExchange
 lib/prompts.ts          # getSystemPrompt (per-scenario behavior)
 ```
 
@@ -28,11 +28,8 @@ Content-Type: application/json
 {
   "scenarioId": "free-chat" | "job-interview" | "cafe" | "neighbor",
   "sessionId": "uuid",          // optional: from the previous reply's X-Session-Id
-  "inputMode": "voice" | "typed", // optional: how the latest message was produced
-  "messages": [
-    { "role": "user" | "assistant", "content": "string" },
-    ...
-  ]
+  "inputMode": "voice" | "typed", // optional: how the message was produced
+  "message": "string"           // the learner's new turn
 }
 ```
 
@@ -58,12 +55,10 @@ The body is the raw text of the partner's reply, streamed token-by-token. If the
 
 - Body is a JSON object.
 - `scenarioId` is one of the four supported ids (`isScenarioId`).
-- `messages` is a non-empty array.
-- At most `MAX_TURNS = 40` messages.
-- Each message has `role` in `{"user", "assistant"}` and a non-empty `content` string.
-- Each message is at most `MAX_CHARS = 2000` characters after trimming.
-- Messages must strictly alternate between `user` and `assistant`.
-- The first and the last message must be `user` (so the partner always has a turn to respond to).
+- `message` is a non-empty string of at most `MAX_CHARS = 2000` characters after trimming.
+- Any other field (such as an old-style `messages` array) is ignored.
+
+The history sent to the provider is `buildHistory(savedTurns, message)`: the session's saved turns plus the new message, with consecutive turns from the same speaker joined so roles alternate. More than `MAX_TURNS = 40` turns returns `400` "This conversation is too long. Start a new one."
 
 Validation errors return `400` with `{ "error": "<message>" }`. Malformed JSON also returns `400`.
 
@@ -73,13 +68,11 @@ The handler calls `resolveProvider()` (see [ai-providers.md](./ai-providers.md))
 
 ## Learner and session
 
-Before streaming, the handler loads the current learner with `getLearner()` (`lib/learner.ts`), which reads the `fluency_learner` cookie set by `proxy.ts`. The session is resolved with `resolveSession()` (`lib/sessions.ts`) only after the first token arrives, so a failed turn creates no session. That reuses `sessionId` only if the session belongs to this learner, is for the same scenario and hasn't ended. Otherwise it starts a new session, so a client can't write into another learner's session. If the database is unreachable, the handler returns `503`.
+Before streaming, the handler loads the current learner with `getLearner()` (`lib/learner.ts`), which reads the `fluency_learner` cookie set by `proxy.ts`. If the request has a `sessionId`, `findOpenSession()` (`lib/sessions.ts`) returns it only if it belongs to this learner, is for the same scenario and hasn't ended, and `loadTurns()` reads its history. Otherwise the turn starts a new conversation, so a client can't read or write another learner's session. A new session is created with `startSession()` only after the first token arrives, so a failed first turn creates no session. If the database is unreachable, the handler returns `503`.
 
 ## Saving turns
 
 A failure before the first token saves nothing. When a reply starts, the stream resolves a promise with the streamed text when the reply ends, whether it completes, fails or is cancelled. An `after()` callback (`next/server`) waits for it and calls `saveExchange()`. That appends the latest user message (with `inputMode`) and the reply to `session_turns` in one transaction that locks the session row. An empty reply saves only the user turn. Saving never delays the reply, and a save failure is logged, not shown to the learner.
-
-The server still uses the client's `messages` array as the conversation history. Reading history from the database instead is FLU-23.
 
 ## Streaming
 

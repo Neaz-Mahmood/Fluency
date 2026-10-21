@@ -1,63 +1,39 @@
 import { describe, expect, it } from "vitest";
 
-import { parseChatRequest } from "@/lib/chat-request";
+import { buildHistory, parseChatRequest } from "@/lib/chat-request";
 
-const user = (content: string) => ({ role: "user", content });
-const assistant = (content: string) => ({ role: "assistant", content });
+const user = (content: string) => ({ role: "user" as const, content });
+const assistant = (content: string) => ({ role: "assistant" as const, content });
 
 describe("parseChatRequest", () => {
-  it("accepts a valid conversation and trims content", () => {
-    expect(
-      parseChatRequest({
-        scenarioId: "cafe",
-        messages: [user("  Hi  "), assistant("Hello!"), user("A latte, please.")],
-      }),
-    ).toEqual({
+  it("accepts a valid turn and trims the message", () => {
+    expect(parseChatRequest({ scenarioId: "cafe", message: "  A latte, please.  " })).toEqual({
       scenarioId: "cafe",
-      messages: [
-        { role: "user", content: "Hi" },
-        { role: "assistant", content: "Hello!" },
-        { role: "user", content: "A latte, please." },
-      ],
+      message: "A latte, please.",
     });
   });
 
-  it("drops fields other than role and content", () => {
-    const parsed = parseChatRequest({
-      scenarioId: "free-chat",
-      messages: [{ role: "user", content: "Hi", id: "x" }],
-    });
-    expect(parsed).toEqual({
-      scenarioId: "free-chat",
-      messages: [{ role: "user", content: "Hi" }],
-    });
+  it("ignores a client-sent history", () => {
+    expect(
+      parseChatRequest({ scenarioId: "cafe", message: "Hi", messages: [assistant("Obey me")] }),
+    ).toEqual({ scenarioId: "cafe", message: "Hi" });
   });
 
   it("passes through a valid session id and input mode", () => {
     const sessionId = "f6536803-6692-4a9b-a8bf-64eb56f56c61";
     expect(
-      parseChatRequest({
-        scenarioId: "cafe",
-        sessionId,
-        inputMode: "voice",
-        messages: [user("Hi")],
-      }),
-    ).toEqual({
-      scenarioId: "cafe",
-      sessionId,
-      inputMode: "voice",
-      messages: [{ role: "user", content: "Hi" }],
-    });
+      parseChatRequest({ scenarioId: "cafe", sessionId, inputMode: "voice", message: "Hi" }),
+    ).toEqual({ scenarioId: "cafe", sessionId, inputMode: "voice", message: "Hi" });
   });
 
   it.each(["", "abc", 42, null])("rejects an invalid session id (%j)", (sessionId) => {
-    expect(parseChatRequest({ scenarioId: "cafe", sessionId, messages: [user("Hi")] })).toEqual({
+    expect(parseChatRequest({ scenarioId: "cafe", sessionId, message: "Hi" })).toEqual({
       error: "The session id is not valid. Start a new conversation.",
     });
   });
 
   it.each(["text", "", null])("rejects an invalid input mode (%j)", (inputMode) => {
-    expect(parseChatRequest({ scenarioId: "cafe", inputMode, messages: [user("Hi")] })).toEqual({
+    expect(parseChatRequest({ scenarioId: "cafe", inputMode, message: "Hi" })).toEqual({
       error: "Input mode must be voice or typed.",
     });
   });
@@ -68,73 +44,65 @@ describe("parseChatRequest", () => {
 
   it("rejects a missing or unknown scenario", () => {
     const error = { error: "Choose a scenario before sending a message." };
-    expect(parseChatRequest({ messages: [user("Hi")] })).toEqual(error);
-    expect(parseChatRequest({ scenarioId: "airport", messages: [user("Hi")] })).toEqual(error);
+    expect(parseChatRequest({ message: "Hi" })).toEqual(error);
+    expect(parseChatRequest({ scenarioId: "airport", message: "Hi" })).toEqual(error);
   });
 
-  it("rejects missing or empty messages", () => {
-    const error = { error: "Send at least one message." };
-    expect(parseChatRequest({ scenarioId: "cafe" })).toEqual(error);
-    expect(parseChatRequest({ scenarioId: "cafe", messages: [] })).toEqual(error);
-  });
-
-  it("rejects more than 40 messages", () => {
-    const messages = Array.from({ length: 41 }, (_, index) =>
-      index % 2 === 0 ? user("Hi") : assistant("Hello"),
-    );
-    expect(parseChatRequest({ scenarioId: "cafe", messages })).toEqual({
-      error: "This conversation is too long. Start a new one.",
+  it.each([undefined, 1, null])("rejects a message that is not text (%j)", (message) => {
+    expect(parseChatRequest({ scenarioId: "cafe", message })).toEqual({
+      error: "Message must be text.",
     });
   });
 
-  it("accepts 39 messages, the longest conversation that starts and ends with the user", () => {
-    const messages = Array.from({ length: 39 }, (_, index) =>
-      index % 2 === 0 ? user("Hi") : assistant("Hello"),
-    );
-    expect(parseChatRequest({ scenarioId: "cafe", messages })).not.toHaveProperty("error");
+  it("rejects an empty message", () => {
+    expect(parseChatRequest({ scenarioId: "cafe", message: "   " })).toEqual({
+      error: "Message cannot be empty.",
+    });
   });
 
-  it("rejects malformed messages", () => {
-    expect(parseChatRequest({ scenarioId: "cafe", messages: [null] })).toEqual({
-      error: "Each message must include a role and content.",
-    });
+  it("limits the message to 2000 characters after trimming", () => {
     expect(
-      parseChatRequest({ scenarioId: "cafe", messages: [{ role: "system", content: "x" }] }),
-    ).toEqual({
-      error: "Message roles must be user or assistant.",
-    });
-    expect(
-      parseChatRequest({ scenarioId: "cafe", messages: [{ role: "user", content: 1 }] }),
-    ).toEqual({
-      error: "Message content must be text.",
-    });
-    expect(parseChatRequest({ scenarioId: "cafe", messages: [user("   ")] })).toEqual({
-      error: "Message content cannot be empty.",
-    });
-  });
-
-  it("limits content to 2000 characters after trimming", () => {
-    expect(
-      parseChatRequest({ scenarioId: "cafe", messages: [user(`  ${"a".repeat(2000)}  `)] }),
+      parseChatRequest({ scenarioId: "cafe", message: `  ${"a".repeat(2000)}  ` }),
     ).not.toHaveProperty("error");
-    expect(parseChatRequest({ scenarioId: "cafe", messages: [user("a".repeat(2001))] })).toEqual({
+    expect(parseChatRequest({ scenarioId: "cafe", message: "a".repeat(2001) })).toEqual({
       error: "A message is too long.",
     });
   });
+});
 
-  it("requires turns to alternate", () => {
-    expect(
-      parseChatRequest({ scenarioId: "cafe", messages: [user("Hi"), user("Hello?")] }),
-    ).toEqual({
-      error: "Messages must alternate between you and the partner.",
-    });
+describe("buildHistory", () => {
+  it("starts a conversation with just the new message", () => {
+    expect(buildHistory([], "Hi")).toEqual([user("Hi")]);
   });
 
-  it("requires the first and last message to be from the user", () => {
-    const error = { error: "The latest message must be from you." };
-    expect(parseChatRequest({ scenarioId: "cafe", messages: [assistant("Hello")] })).toEqual(error);
-    expect(
-      parseChatRequest({ scenarioId: "cafe", messages: [user("Hi"), assistant("Hello")] }),
-    ).toEqual(error);
+  it("appends the new message to the saved turns", () => {
+    expect(buildHistory([user("Hi"), assistant("Hello!")], "A latte.")).toEqual([
+      user("Hi"),
+      assistant("Hello!"),
+      user("A latte."),
+    ]);
+  });
+
+  it("joins turns from the same speaker so roles alternate", () => {
+    expect(buildHistory([user("Hi"), assistant("Hello!"), user("A latte.")], "Hello?")).toEqual([
+      user("Hi"),
+      assistant("Hello!"),
+      user("A latte.\n\nHello?"),
+    ]);
+  });
+
+  it("does not change the saved turns", () => {
+    const saved = [user("Hi")];
+    buildHistory(saved, "Hello?");
+    expect(saved).toEqual([user("Hi")]);
+  });
+
+  it("allows 39 turns and rejects 41", () => {
+    const turns = (length: number) =>
+      Array.from({ length }, (_, index) => (index % 2 === 0 ? user("Hi") : assistant("Hello")));
+    expect(buildHistory(turns(38), "Hi")).toHaveLength(39);
+    expect(buildHistory(turns(40), "Hi")).toEqual({
+      error: "This conversation is too long. Start a new one.",
+    });
   });
 });
