@@ -91,7 +91,7 @@ Done when: a first visit creates exactly one learner row, a reload reuses it, an
 - [x] **Session history page.** Done (FLU-24). Past sessions are listed at `/history` and each opens a read-only transcript at `/history/[sessionId]`.
 - [x] **Latency logging.** Done (FLU-25): server time to first token and client time to first audio are recorded per assistant turn in `session_turns`.
 - [x] **Split `Conversation.tsx`.** Done (FLU-26). Move the audio and turn state machine into a hook (for example `useConversation`) and keep the component for layout. Replace raw hex values with `DESIGN.md` tokens while you're there.
-- [ ] **Evaluation harness skeleton.** A `scripts/eval` entry point, a golden-set file format (`input`, `expected_edits`, `is_error_free`) and a report of over-correction rate and edit counts. It can start with 10 hand-written sentences.
+- [x] **Evaluation harness skeleton.** Done (FLU-27). Runs `pnpm eval` against `scripts/eval/golden/bn-en.json` using the baseline `noEdits` corrector to report over-correction rate and edit counts.
 
 Done when: a reload shows the same conversation, every turn has latency numbers, and `pnpm eval` prints a report.
 

@@ -1,0 +1,92 @@
+[
+  {
+    "id": "bn-en-001",
+    "input": "I am student of a university in Dhaka.",
+    "expected_edits": [
+      {
+        "original": "am student",
+        "correction": "am a student"
+      }
+    ],
+    "is_error_free": false
+  },
+  {
+    "id": "bn-en-002",
+    "input": "He go to school every day by rickshaw.",
+    "expected_edits": [
+      {
+        "original": "He go",
+        "correction": "He goes"
+      }
+    ],
+    "is_error_free": false
+  },
+  {
+    "id": "bn-en-003",
+    "input": "My father is doctor.",
+    "expected_edits": [
+      {
+        "original": "is doctor",
+        "correction": "is a doctor"
+      }
+    ],
+    "is_error_free": false
+  },
+  {
+    "id": "bn-en-004",
+    "input": "I am knowing the answer.",
+    "expected_edits": [
+      {
+        "original": "am knowing",
+        "correction": "know"
+      }
+    ],
+    "is_error_free": false
+  },
+  {
+    "id": "bn-en-005",
+    "input": "Yesterday I have gone to the market with my mother.",
+    "expected_edits": [
+      {
+        "original": "have gone",
+        "correction": "went"
+      }
+    ],
+    "is_error_free": false
+  },
+  {
+    "id": "bn-en-006",
+    "input": "She don't like spicy food.",
+    "expected_edits": [
+      {
+        "original": "don't",
+        "correction": "doesn't"
+      }
+    ],
+    "is_error_free": false
+  },
+  {
+    "id": "bn-en-007",
+    "input": "I live in Dhaka with my parents.",
+    "expected_edits": [],
+    "is_error_free": true
+  },
+  {
+    "id": "bn-en-008",
+    "input": "We ate rice and fish for lunch today.",
+    "expected_edits": [],
+    "is_error_free": true
+  },
+  {
+    "id": "bn-en-009",
+    "input": "My brother works at a bank in Chittagong.",
+    "expected_edits": [],
+    "is_error_free": true
+  },
+  {
+    "id": "bn-en-010",
+    "input": "Could you speak a little more slowly, please?",
+    "expected_edits": [],
+    "is_error_free": true
+  }
+]
