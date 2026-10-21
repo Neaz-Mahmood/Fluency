@@ -9,6 +9,7 @@ import {
   findSession,
   listSessions,
   loadTurns,
+  recordFirstAudio,
   saveExchange,
   startSession,
 } from "@/lib/sessions";
@@ -100,12 +101,16 @@ describe("loadTurns", () => {
       userText: "Hi",
       inputMode: "voice",
       replyText: "Hello!",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 100,
     });
     await saveExchange(db, {
       sessionId,
       userText: "A latte.",
       inputMode: "typed",
       replyText: "",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 0,
     });
 
     const turns = await loadTurns(db, sessionId);
@@ -128,12 +133,16 @@ describe("saveExchange", () => {
       userText: "Hi",
       inputMode: "voice",
       replyText: "Hello! ",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 120,
     });
     await saveExchange(db, {
       sessionId,
       userText: "A latte, please.",
       inputMode: "typed",
       replyText: "Hot or iced?",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 140,
     });
 
     expect(await turnsOf(sessionId)).toEqual([
@@ -142,6 +151,38 @@ describe("saveExchange", () => {
       { position: 2, role: "user", content: "A latte, please.", inputMode: "typed" },
       { position: 3, role: "assistant", content: "Hot or iced?", inputMode: null },
     ]);
+  });
+
+  it("stores the reply turn id and first token latency on the assistant turn", async () => {
+    const learnerId = await newLearner();
+    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const replyTurnId = crypto.randomUUID();
+
+    await saveExchange(db, {
+      sessionId,
+      userText: "Hi",
+      inputMode: "voice",
+      replyText: "Hello!",
+      replyTurnId,
+      firstTokenMs: 250,
+    });
+
+    const [assistantTurn] = await db
+      .select({
+        turnId: sessionTurns.turnId,
+        role: sessionTurns.role,
+        firstTokenMs: sessionTurns.firstTokenMs,
+        firstAudioMs: sessionTurns.firstAudioMs,
+      })
+      .from(sessionTurns)
+      .where(eq(sessionTurns.turnId, replyTurnId));
+
+    expect(assistantTurn).toEqual({
+      turnId: replyTurnId,
+      role: "assistant",
+      firstTokenMs: 250,
+      firstAudioMs: null,
+    });
   });
 
   it("saves only the learner's turn when the reply is empty", async () => {
@@ -153,6 +194,8 @@ describe("saveExchange", () => {
       userText: "Hi",
       inputMode: null,
       replyText: "  ",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 0,
     });
 
     expect(await turnsOf(sessionId)).toEqual([
@@ -171,6 +214,8 @@ describe("saveExchange", () => {
           userText: `Turn ${index}`,
           inputMode: "typed",
           replyText: `Reply ${index}`,
+          replyTurnId: crypto.randomUUID(),
+          firstTokenMs: 100 + index,
         }),
       ),
     );
@@ -218,6 +263,8 @@ describe("listSessions", () => {
       userText: "Other learner",
       inputMode: "voice",
       replyText: "Reply to other",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 80,
     });
 
     await saveExchange(db, {
@@ -225,6 +272,8 @@ describe("listSessions", () => {
       userText: "Coffee please",
       inputMode: "voice",
       replyText: "Sure thing!",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 90,
     });
 
     await saveExchange(db, {
@@ -232,12 +281,16 @@ describe("listSessions", () => {
       userText: "Hello, I am ready.",
       inputMode: "typed",
       replyText: "Welcome! Tell me about yourself.",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 110,
     });
     await saveExchange(db, {
       sessionId: newer.sessionId,
       userText: "I am a software engineer.",
       inputMode: "typed",
       replyText: "Great, how many years?",
+      replyTurnId: crypto.randomUUID(),
+      firstTokenMs: 95,
     });
 
     const sessionsList = await listSessions(db, owner);
@@ -254,5 +307,74 @@ describe("listSessions", () => {
       mode: "conversation",
       turnCount: 2,
     });
+  });
+});
+
+describe("recordFirstAudio", () => {
+  it("sets firstAudioMs for the owner of the session", async () => {
+    const owner = await newLearner();
+    const { sessionId } = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const replyTurnId = crypto.randomUUID();
+
+    await saveExchange(db, {
+      sessionId,
+      userText: "Hi",
+      inputMode: "voice",
+      replyText: "Hello!",
+      replyTurnId,
+      firstTokenMs: 150,
+    });
+
+    const recorded = await recordFirstAudio(db, {
+      learnerId: owner,
+      turnId: replyTurnId,
+      firstAudioMs: 420,
+    });
+    expect(recorded).toBe(true);
+
+    const [assistantTurn] = await db
+      .select({ firstAudioMs: sessionTurns.firstAudioMs })
+      .from(sessionTurns)
+      .where(eq(sessionTurns.turnId, replyTurnId));
+    expect(assistantTurn?.firstAudioMs).toBe(420);
+  });
+
+  it("returns false and changes nothing for another learner", async () => {
+    const owner = await newLearner();
+    const other = await newLearner();
+    const { sessionId } = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const replyTurnId = crypto.randomUUID();
+
+    await saveExchange(db, {
+      sessionId,
+      userText: "Hi",
+      inputMode: "voice",
+      replyText: "Hello!",
+      replyTurnId,
+      firstTokenMs: 150,
+    });
+
+    const recorded = await recordFirstAudio(db, {
+      learnerId: other,
+      turnId: replyTurnId,
+      firstAudioMs: 420,
+    });
+    expect(recorded).toBe(false);
+
+    const [assistantTurn] = await db
+      .select({ firstAudioMs: sessionTurns.firstAudioMs })
+      .from(sessionTurns)
+      .where(eq(sessionTurns.turnId, replyTurnId));
+    expect(assistantTurn?.firstAudioMs).toBeNull();
+  });
+
+  it("returns false for an unknown turn id", async () => {
+    const learnerId = await newLearner();
+    const recorded = await recordFirstAudio(db, {
+      learnerId,
+      turnId: crypto.randomUUID(),
+      firstAudioMs: 420,
+    });
+    expect(recorded).toBe(false);
   });
 });

@@ -13,6 +13,7 @@ import { startReply, type StartedReply } from "@/lib/reply-stream";
 import { findOpenSession, loadTurns, saveExchange, startSession } from "@/lib/sessions";
 
 export async function POST(request: Request) {
+  const receivedAt = performance.now();
   let body: unknown;
   try {
     body = await request.json();
@@ -80,6 +81,8 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status });
   }
 
+  const firstTokenMs = Math.round(performance.now() - receivedAt);
+
   // Created only once the reply has started, so a failed first turn leaves no session.
   let session: Session;
   try {
@@ -132,6 +135,8 @@ export async function POST(request: Request) {
     },
   });
 
+  const replyTurnId = crypto.randomUUID();
+
   after(async () => {
     try {
       await saveExchange(getDb(), {
@@ -139,6 +144,8 @@ export async function POST(request: Request) {
         userText: parsed.message,
         inputMode: parsed.inputMode ?? null,
         replyText: await replyDone,
+        replyTurnId,
+        firstTokenMs,
       });
     } catch (error) {
       console.error("Could not save the conversation turn.", error);
@@ -150,6 +157,7 @@ export async function POST(request: Request) {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Session-Id": session.sessionId,
+      "X-Reply-Id": replyTurnId,
     },
   });
 }

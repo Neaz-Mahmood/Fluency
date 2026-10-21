@@ -3,6 +3,7 @@
 import { FormEvent, PointerEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import type { ScenarioId } from "@/lib/scenarios";
+import { recordFirstAudio } from "@/app/practice/actions";
 import { isSpeechRecognitionSupported, startListening, type ListeningSession } from "@/lib/stt";
 import { isSpeechSynthesisSupported, speakText, stopSpeaking } from "@/lib/tts";
 
@@ -145,6 +146,8 @@ export function useConversation({
     const content = text.trim();
     if (!content || !target || statusRef.current === "thinking") return;
 
+    const sentAt = performance.now();
+
     stopListening(true);
     cancelSpeechRef.current?.();
     stopSpeaking();
@@ -195,6 +198,7 @@ export function useConversation({
       }
 
       const sessionId = response.headers.get("X-Session-Id");
+      const replyId = response.headers.get("X-Reply-Id");
       if (sessionId) {
         chatSessionIdRef.current = sessionId;
         // Keeps the session in the URL so a reload loads it (app/practice/page.tsx).
@@ -226,7 +230,7 @@ export function useConversation({
       setTurns((current) =>
         current.map((turn) => (turn.id === assistantId ? { ...turn, content: finalReply } : turn)),
       );
-      speakReply(finalReply, token);
+      speakReply(finalReply, token, replyId ? { replyId, sentAt } : undefined);
     } catch (caught) {
       if (!isCurrent(token) || (caught instanceof DOMException && caught.name === "AbortError")) {
         return;
@@ -251,7 +255,11 @@ export function useConversation({
     }
   }
 
-  function speakReply(text: string, token: number) {
+  function speakReply(
+    text: string,
+    token: number,
+    latency?: { replyId: string; sentAt: number },
+  ) {
     if (!isSpeechSynthesisSupported()) {
       setStatus("idle");
       if (handsFreeRef.current) beginListening(false);
@@ -260,7 +268,12 @@ export function useConversation({
 
     cancelSpeechRef.current = speakText(text, {
       onStart: () => {
-        if (isCurrent(token)) setStatus("speaking");
+        if (isCurrent(token)) {
+          setStatus("speaking");
+          if (latency) {
+            void recordFirstAudio(latency.replyId, Math.round(performance.now() - latency.sentAt));
+          }
+        }
       },
       onError: () => {
         if (!isCurrent(token)) return;

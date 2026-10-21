@@ -46,6 +46,7 @@ Once streaming begins, the handler returns a `ReadableStream<Uint8Array>` with:
 - `Content-Type: text/plain; charset=utf-8`
 - `Cache-Control: no-store`
 - `X-Session-Id: <uuid>`: the saved session this turn belongs to. The client sends it back as `sessionId` on the next turn.
+- `X-Reply-Id: <uuid>`: the id assigned to the assistant turn, used by the client to report speech latency.
 
 The body is the raw text of the partner's reply, streamed token-by-token. If the client cancels the request, the handler calls `reply.abort()` so the upstream provider stops generating.
 
@@ -73,6 +74,8 @@ Before streaming, the handler loads the current learner with `getLearner()` (`li
 ## Saving turns
 
 A failure before the first token saves nothing. When a reply starts, the stream resolves a promise with the streamed text when the reply ends, whether it completes, fails or is cancelled. An `after()` callback (`next/server`) waits for it and calls `saveExchange()`. That appends the latest user message (with `inputMode`) and the reply to `session_turns` in one transaction that locks the session row. An empty reply saves only the user turn. Saving never delays the reply, and a save failure is logged, not shown to the learner.
+
+The assistant turn row stores latency in two columns: `first_token_ms` (server-measured time from request receipt to the first provider token) and `first_audio_ms` (client-measured time from sending the user message to speech synthesis starting).
 
 ## Streaming
 

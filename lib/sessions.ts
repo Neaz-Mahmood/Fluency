@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, isNull, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, max } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import { sessions, sessionTurns, type Session } from "@/lib/db/schema";
@@ -91,6 +91,8 @@ export async function saveExchange(
     userText: string;
     inputMode: "voice" | "typed" | null;
     replyText: string;
+    replyTurnId: string;
+    firstTokenMs: number;
   },
 ): Promise<void> {
   await db.transaction(async (tx) => {
@@ -118,13 +120,41 @@ export async function saveExchange(
       ...(reply
         ? [
             {
+              turnId: exchange.replyTurnId,
               sessionId: exchange.sessionId,
               position: next + 1,
               role: "assistant" as const,
               content: reply,
+              firstTokenMs: exchange.firstTokenMs,
             },
           ]
         : []),
     ]);
   });
+}
+
+// Records the client-measured time to speech start for an assistant turn, only if the
+// session belongs to the current learner.
+export async function recordFirstAudio(
+  db: Db,
+  options: { learnerId: string; turnId: string; firstAudioMs: number },
+): Promise<boolean> {
+  const updated = await db
+    .update(sessionTurns)
+    .set({ firstAudioMs: options.firstAudioMs })
+    .where(
+      and(
+        eq(sessionTurns.turnId, options.turnId),
+        eq(sessionTurns.role, "assistant"),
+        inArray(
+          sessionTurns.sessionId,
+          db
+            .select({ id: sessions.sessionId })
+            .from(sessions)
+            .where(eq(sessions.learnerId, options.learnerId)),
+        ),
+      ),
+    )
+    .returning({ turnId: sessionTurns.turnId });
+  return updated.length > 0;
 }

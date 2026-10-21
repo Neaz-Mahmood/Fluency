@@ -40,11 +40,25 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 3. ~~**Two lockfiles.**~~ Fixed: pnpm only.
 4. ~~**No tests.**~~ Fixed for the pure server modules. The UI and the streaming route still have no tests.
 5. ~~**Everything is in memory.**~~ Fixed: turns are saved (FLU-22) and a reload loads them back from the database (FLU-23).
-6. **No latency numbers.** Phase 4's p50/p90 gate needs a baseline, and nothing is measured today.
+6. ~~**No latency numbers.**~~ Fixed: server time to first token and client time to first audio are recorded per assistant turn in `session_turns` (FLU-25).
 7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`, and an English-only UI. That's fine for es → en as long as the native language is stored, but A1 learners need Spanish UI text.
 8. **The prompt is the same for every learner.** `getSystemPrompt(scenarioId)` has no input for CEFR level or a learner summary.
 9. ~~**`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`.~~ Fixed: state machine moved to `hooks/useConversation.ts` and hex colors replaced with design tokens (FLU-26).
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
+
+### Latency baseline
+
+Baseline: not measured yet. Run the query after at least 20 spoken turns and record p50/p90 here.
+
+```sql
+-- docker compose exec db psql -U fluency fluency
+SELECT
+  percentile_cont(0.5) WITHIN GROUP (ORDER BY first_token_ms) AS token_p50,
+  percentile_cont(0.9) WITHIN GROUP (ORDER BY first_token_ms) AS token_p90,
+  percentile_cont(0.5) WITHIN GROUP (ORDER BY first_audio_ms) AS audio_p50,
+  percentile_cont(0.9) WITHIN GROUP (ORDER BY first_audio_ms) AS audio_p90
+FROM session_turns WHERE role = 'assistant';
+```
 
 ## What to work on
 
@@ -75,7 +89,7 @@ Done when: a first visit creates exactly one learner row, a reload reuses it, an
 - [x] **Save sessions.** Done (FLU-22). A session is created on the first message, not when a scenario is picked, so browsing scenarios leaves no empty sessions. The server returns its id in `X-Session-Id`, and the client sends it back. `resolveSession()` only reuses a session that belongs to this learner and scenario. `after()` waits for the stream to end and saves the user turn (with `inputMode`) and the reply in one locked transaction. See `doc/api.md`.
 - [x] **Load from the database.** Done (FLU-23). The client sends only the new `message`; the route builds the history from `session_turns` with `buildHistory()`. `/practice?session=<id>` reloads the conversation from the database, for the learner's own open sessions only.
 - [x] **Session history page.** Done (FLU-24). Past sessions are listed at `/history` and each opens a read-only transcript at `/history/[sessionId]`.
-- [ ] **Latency logging.** Server: time to first token per turn in `route.ts`. Client: time from send to `speakText` `onStart` in `Conversation.tsx`. Store both per turn in `session_turns`.
+- [x] **Latency logging.** Done (FLU-25): server time to first token and client time to first audio are recorded per assistant turn in `session_turns`.
 - [x] **Split `Conversation.tsx`.** Done (FLU-26). Move the audio and turn state machine into a hook (for example `useConversation`) and keep the component for layout. Replace raw hex values with `DESIGN.md` tokens while you're there.
 - [ ] **Evaluation harness skeleton.** A `scripts/eval` entry point, a golden-set file format (`input`, `expected_edits`, `is_error_free`) and a report of over-correction rate and edit counts. It can start with 10 hand-written sentences.
 
