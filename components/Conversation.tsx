@@ -1,321 +1,43 @@
 "use client";
 
-import { FormEvent, PointerEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mic, Square } from "lucide-react";
 
 import { ScenarioPicker } from "@/components/ScenarioPicker";
 import { Transcript } from "@/components/Transcript";
 import { Button } from "@/components/ui/button";
+import { useConversation, type SavedConversation } from "@/hooks/useConversation";
 import { SCENARIOS, type ScenarioId } from "@/lib/scenarios";
-import { isSpeechRecognitionSupported, startListening, type ListeningSession } from "@/lib/stt";
-import { isSpeechSynthesisSupported, speakText, stopSpeaking } from "@/lib/tts";
-
-type Turn = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-};
-
-// A conversation loaded from the database, so a reload picks up where it left off.
-export type SavedConversation = {
-  sessionId: string;
-  scenarioId: ScenarioId;
-  turns: Turn[];
-};
-
-type Status = "idle" | "listening" | "thinking" | "speaking";
-
-const HOLD_THRESHOLD_MS = 280;
 
 export function Conversation({ saved }: { saved: SavedConversation | null }) {
   const [scenarioId, setScenarioId] = useState<ScenarioId | null>(saved?.scenarioId ?? null);
-  const [turns, setTurns] = useState<Turn[]>(saved?.turns ?? []);
-  const [status, setStatus] = useState<Status>("idle");
-  const [interim, setInterim] = useState("");
-  const [draft, setDraft] = useState("");
-  const [handsFree, setHandsFree] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const speechReady = useSyncExternalStore(
-    () => () => undefined,
-    isSpeechRecognitionSupported,
-    () => false,
-  );
-  const voiceReady = useSyncExternalStore(
-    () => () => undefined,
-    isSpeechSynthesisSupported,
-    () => false,
-  );
-
-  const statusRef = useRef<Status>("idle");
-  const turnsRef = useRef<Turn[]>(saved?.turns ?? []);
-  const handsFreeRef = useRef(false);
-  const sessionRef = useRef<ListeningSession | null>(null);
-  // The saved conversation, from the X-Session-Id header of the first reply.
-  const chatSessionIdRef = useRef<string | null>(saved?.sessionId ?? null);
-  const cancelSpeechRef = useRef<(() => void) | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const turnToken = useRef(0);
-  const pressStarted = useRef(0);
-  const releaseSends = useRef(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    statusRef.current = status;
-  }, [status]);
-
-  useEffect(() => {
-    turnsRef.current = turns;
-  }, [turns]);
-
-  useEffect(() => {
-    handsFreeRef.current = handsFree;
-  }, [handsFree]);
+  const conversation = useConversation({
+    target: scenarioId ? { scenarioId } : null,
+    saved,
+  });
+  const {
+    turns,
+    status,
+    interim,
+    error,
+    draft,
+    setDraft,
+    handsFree,
+    toggleHandsFree,
+    speechReady,
+    voiceReady,
+    interrupt,
+    finishListening,
+    onMicPointerDown,
+    onMicPointerUp,
+    onSubmit,
+  } = conversation;
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight });
   }, [turns, interim, status]);
-
-  useEffect(() => {
-    return () => {
-      sessionRef.current?.abort();
-      cancelSpeechRef.current?.();
-      abortRef.current?.abort();
-      stopSpeaking();
-    };
-  }, []);
-
-  function nextToken() {
-    turnToken.current += 1;
-    return turnToken.current;
-  }
-
-  function isCurrent(token: number) {
-    return turnToken.current === token;
-  }
-
-  function stopListening(abort: boolean) {
-    const session = sessionRef.current;
-    sessionRef.current = null;
-    if (!session) return;
-    if (abort) session.abort();
-    else session.stop();
-  }
-
-  function beginListening(continuous: boolean) {
-    if (statusRef.current === "thinking") return;
-    stopListening(true);
-    cancelSpeechRef.current?.();
-    cancelSpeechRef.current = null;
-    stopSpeaking();
-    setError(null);
-    setInterim("");
-    setStatus("listening");
-
-    const session = startListening({
-      continuous,
-      onUpdate: (text) => setInterim(text),
-      onError: (message) => {
-        setError(message);
-        setStatus("idle");
-        setInterim("");
-      },
-      onEnd: (finalText) => {
-        sessionRef.current = null;
-        setInterim("");
-        if (!finalText) {
-          setStatus("idle");
-          return;
-        }
-        void sendUserText(finalText, "voice");
-      },
-    });
-
-    if (!session) {
-      setStatus("idle");
-      setError("This browser cannot hear you. Type your line instead.");
-      return;
-    }
-    sessionRef.current = session;
-  }
-
-  function finishListening() {
-    if (statusRef.current !== "listening") return;
-    stopListening(false);
-  }
-
-  async function sendUserText(text: string, inputMode: "voice" | "typed") {
-    const content = text.trim();
-    if (!content || !scenarioId || statusRef.current === "thinking") return;
-
-    stopListening(true);
-    cancelSpeechRef.current?.();
-    stopSpeaking();
-    abortRef.current?.abort();
-
-    const token = nextToken();
-    const userTurn: Turn = { id: crypto.randomUUID(), role: "user", content };
-    const history = [...turnsRef.current, userTurn];
-    const assistantId = crypto.randomUUID();
-    setTurns(history);
-    setDraft("");
-    setInterim("");
-    setError(null);
-    setStatus("thinking");
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    let received = "";
-
-    try {
-      let response: Response;
-      try {
-        response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
-            scenarioId,
-            sessionId: chatSessionIdRef.current ?? undefined,
-            inputMode,
-            message: content,
-          }),
-        });
-      } catch (caughtFetch) {
-        if (
-          controller.signal.aborted ||
-          (caughtFetch instanceof DOMException && caughtFetch.name === "AbortError")
-        ) {
-          throw caughtFetch;
-        }
-        throw new Error("The conversation partner could not reply.");
-      }
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "The conversation partner could not reply.");
-      }
-
-      const sessionId = response.headers.get("X-Session-Id");
-      if (sessionId) {
-        chatSessionIdRef.current = sessionId;
-        // Keeps the session in the URL so a reload loads it (app/practice/page.tsx).
-        window.history.replaceState(null, "", `?session=${sessionId}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("The conversation partner could not reply.");
-
-      const decoder = new TextDecoder();
-      setTurns((current) => [...current, { id: assistantId, role: "assistant", content: "" }]);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += decoder.decode(value, { stream: true });
-        if (!isCurrent(token)) return;
-        const snapshot = received;
-        setTurns((current) =>
-          current.map((turn) => (turn.id === assistantId ? { ...turn, content: snapshot } : turn)),
-        );
-      }
-      received += decoder.decode();
-
-      if (!isCurrent(token)) return;
-      const finalReply = received.trim();
-      if (!finalReply) throw new Error("The partner did not say anything. Try again.");
-
-      setTurns((current) =>
-        current.map((turn) => (turn.id === assistantId ? { ...turn, content: finalReply } : turn)),
-      );
-      speakReply(finalReply, token);
-    } catch (caught) {
-      if (!isCurrent(token) || (caught instanceof DOMException && caught.name === "AbortError")) {
-        return;
-      }
-      if (received.trim().length > 0) {
-        setTurns((current) =>
-          current.map((turn) =>
-            turn.id === assistantId ? { ...turn, content: received.trim() } : turn,
-          ),
-        );
-        setError("The reply was cut off. You can keep going.");
-      } else {
-        setTurns((current) =>
-          current.filter((turn) => turn.id !== userTurn.id && turn.id !== assistantId),
-        );
-        setDraft(content);
-        setError(
-          caught instanceof Error ? caught.message : "The conversation partner could not reply.",
-        );
-      }
-      setStatus("idle");
-    }
-  }
-
-  function speakReply(text: string, token: number) {
-    if (!isSpeechSynthesisSupported()) {
-      setStatus("idle");
-      if (handsFreeRef.current) beginListening(false);
-      return;
-    }
-
-    cancelSpeechRef.current = speakText(text, {
-      onStart: () => {
-        if (isCurrent(token)) setStatus("speaking");
-      },
-      onError: () => {
-        if (!isCurrent(token)) return;
-        setStatus("idle");
-        setError("The reply could not be spoken. You can still read it.");
-      },
-      onEnd: () => {
-        cancelSpeechRef.current = null;
-        if (!isCurrent(token)) return;
-        setStatus("idle");
-        if (handsFreeRef.current) beginListening(false);
-      },
-    });
-  }
-
-  function interrupt() {
-    nextToken();
-    abortRef.current?.abort();
-    stopListening(true);
-    cancelSpeechRef.current?.();
-    cancelSpeechRef.current = null;
-    stopSpeaking();
-    setInterim("");
-    setStatus("idle");
-    setTurns((current) => current.filter((turn) => turn.content.trim().length > 0));
-  }
-
-  function onMicPointerDown(event: PointerEvent<HTMLButtonElement>) {
-    if (event.button !== 0 || statusRef.current === "thinking") return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    if (statusRef.current === "listening") {
-      releaseSends.current = true;
-      return;
-    }
-    releaseSends.current = false;
-    pressStarted.current = Date.now();
-    beginListening(true);
-  }
-
-  function onMicPointerUp() {
-    if (statusRef.current !== "listening") return;
-    const held = Date.now() - pressStarted.current;
-    if (releaseSends.current || held >= HOLD_THRESHOLD_MS) {
-      releaseSends.current = false;
-      finishListening();
-    }
-  }
-
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    void sendUserText(draft, "typed");
-  }
 
   const scenario = SCENARIOS.find((item) => item.id === scenarioId);
 
@@ -323,9 +45,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
     return (
       <ScenarioPicker
         onSelect={(id) => {
-          interrupt();
-          setTurns([]);
-          chatSessionIdRef.current = null;
+          conversation.reset();
           setScenarioId(id);
         }}
       />
@@ -347,12 +67,12 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-4">
       {/* Header Info */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#d8e2ed] pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-oceanic-border pb-4">
         <div>
-          <span className="text-[11px] font-semibold tracking-wider text-[#0461a4] uppercase">
+          <span className="text-[11px] font-semibold tracking-wider text-oceanic-secondary uppercase">
             Active Scenario
           </span>
-          <h1 className="font-heading text-2xl font-bold text-[#03256c] sm:text-3xl">
+          <h1 className="font-heading text-2xl font-bold text-oceanic-imperial sm:text-3xl">
             {scenario.title}
           </h1>
         </div>
@@ -361,10 +81,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
           size="sm"
           className="rounded text-xs"
           onClick={() => {
-            interrupt();
-            setTurns([]);
-            chatSessionIdRef.current = null;
-            window.history.replaceState(null, "", "/practice");
+            conversation.reset();
             setScenarioId(null);
           }}
         >
@@ -375,57 +92,57 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
       {/* Transcript Box (Level 0/Subtle) */}
       <div
         ref={transcriptRef}
-        className="flex min-h-96 flex-1 flex-col overflow-y-auto rounded-lg border border-[#d8e2ed] bg-[#f4f7fb] p-5 shadow-inner"
+        className="flex min-h-96 flex-1 flex-col overflow-y-auto rounded-lg border border-oceanic-border bg-oceanic-subtle p-5 shadow-inner"
         aria-live="polite"
       >
         <Transcript turns={turns} interim={interim} />
       </div>
 
       {/* Action Control Panel (Level 2 Elevation) */}
-      <div className="sticky bottom-0 z-10 flex flex-col gap-4 rounded-lg border border-[#d8e2ed] bg-white p-5 shadow-[0_8px_24px_-4px_rgba(3,37,108,0.10)]">
+      <div className="sticky bottom-0 z-10 flex flex-col gap-4 rounded-lg border border-oceanic-border bg-white p-5 shadow-[0_8px_24px_-4px_rgba(3,37,108,0.10)]">
         {/* Status & Options Row */}
-        <div className="flex items-center justify-between gap-3 border-b border-[#d8e2ed] pb-3">
+        <div className="flex items-center justify-between gap-3 border-b border-oceanic-border pb-3">
           <div className="flex items-center gap-2">
             <span
               className={`size-2 rounded-full ${
                 status === "listening"
-                  ? "bg-[#06bee1] shadow-[0_0_8px_#06bee1] animate-pulse"
+                  ? "bg-oceanic-surge shadow-[0_0_8px_var(--color-oceanic-surge)] animate-pulse"
                   : status === "thinking"
-                    ? "bg-[#2541b2] animate-bounce"
+                    ? "bg-oceanic-persian animate-bounce"
                     : status === "speaking"
-                      ? "bg-[#1768ac] animate-pulse"
-                      : "bg-[#757682]"
+                      ? "bg-oceanic-ocean animate-pulse"
+                      : "bg-oceanic-outline"
               }`}
             />
-            <span className="text-xs font-medium text-[#556b82]">{statusLabel}</span>
+            <span className="text-xs font-medium text-oceanic-muted">{statusLabel}</span>
           </div>
 
           {/* Interactive Filter Chip (Hands-free toggle) */}
           <button
             type="button"
             aria-pressed={handsFree}
-            onClick={() => setHandsFree((value) => !value)}
+            onClick={toggleHandsFree}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer ${
               handsFree
-                ? "border border-[#03256c] bg-[#03256c] text-white"
-                : "border border-[#d8e2ed] bg-white text-[#556b82] hover:border-[#1768ac] hover:text-[#03256c]"
+                ? "border border-oceanic-imperial bg-oceanic-imperial text-white"
+                : "border border-oceanic-border bg-white text-oceanic-muted hover:border-oceanic-ocean hover:text-oceanic-imperial"
             }`}
           >
             <span
-              className={`size-1.5 rounded-full ${handsFree ? "bg-[#06bee1]" : "bg-[#c5c6d2]"}`}
+              className={`size-1.5 rounded-full ${handsFree ? "bg-oceanic-surge" : "bg-oceanic-outline-variant"}`}
             />
             Hands-free
           </button>
         </div>
 
         {error ? (
-          <p className="rounded border border-[#ba1a1a]/20 bg-[#ffdad6] px-3 py-2 text-xs font-medium text-[#93000a]">
+          <p className="rounded border border-oceanic-error/20 bg-oceanic-error-container px-3 py-2 text-xs font-medium text-oceanic-on-error-container">
             {error}
           </p>
         ) : null}
 
         {!speechReady ? (
-          <p className="text-xs text-[#556b82]">
+          <p className="text-xs text-oceanic-muted">
             Speech recognition is unavailable in this browser. You can type your lines, and replies
             will be vocalized
             {voiceReady ? "." : " if audio synthesis is available."}
@@ -438,8 +155,8 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
             type="button"
             className={`h-12 touch-none gap-2 rounded px-6 font-semibold text-white shadow-[0_2px_8px_-2px_rgba(3,37,108,0.2)] transition-all ${
               status === "listening"
-                ? "bg-[#03256c] ring-2 ring-[#06bee1] shadow-[0_0_12px_rgba(6,190,225,0.4)]"
-                : "bg-[#03256c] hover:bg-[#2541b2] active:bg-[#1768ac]"
+                ? "bg-oceanic-imperial ring-2 ring-oceanic-surge shadow-[0_0_12px_rgba(6,190,225,0.4)]"
+                : "bg-oceanic-imperial hover:bg-oceanic-persian active:bg-oceanic-ocean"
             }`}
             disabled={!speechReady || status === "thinking"}
             aria-pressed={status === "listening"}
@@ -447,7 +164,9 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
             onPointerUp={onMicPointerUp}
             onPointerCancel={finishListening}
           >
-            <Mic className={`size-4 ${status === "listening" ? "text-[#06bee1]" : "text-white"}`} />
+            <Mic
+              className={`size-4 ${status === "listening" ? "text-oceanic-surge" : "text-white"}`}
+            />
             {status === "listening" ? "Release to send" : "Hold to talk"}
           </Button>
 
@@ -458,7 +177,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
               className="h-12 gap-1.5 rounded px-4"
               onClick={interrupt}
             >
-              <Square className="size-3.5 fill-current text-[#ba1a1a]" />
+              <Square className="size-3.5 fill-current text-oceanic-error" />
               Stop
             </Button>
           ) : null}
@@ -475,7 +194,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
             onChange={(event) => setDraft(event.target.value)}
             placeholder="Or type what you would say..."
             disabled={status === "thinking"}
-            className="h-10 min-w-0 flex-1 rounded border border-[#d8e2ed] bg-white px-3.5 text-sm text-[#03256c] placeholder-[#556b82] outline-none transition-all focus:border-[#1768ac] focus:ring-2 focus:ring-[#06bee1]/30 disabled:opacity-50"
+            className="h-10 min-w-0 flex-1 rounded border border-oceanic-border bg-white px-3.5 text-sm text-oceanic-imperial placeholder-oceanic-muted outline-none transition-all focus:border-oceanic-ocean focus:ring-2 focus:ring-oceanic-surge/30 disabled:opacity-50"
           />
           <Button
             type="submit"

@@ -4,14 +4,15 @@ The conversation screen hosts the practice session: it owns the turn history, th
 
 ## What it is
 
-A single React component (`<Conversation />`) that wires together the scenario picker, the mic/text input, the streaming API call, and the spoken reply. It is the only client component on the practice route.
+A layout component (`<Conversation />`) backed by the `useConversation` hook. The audio and turn state machine (speech recognition, fetch streaming, speech synthesis, hands-free loop, turn tokens) lives in `hooks/useConversation.ts`, while `components/Conversation.tsx` handles layout and user interaction. It is the only client component on the practice route.
 
 ## Where it lives
 
 ```
-components/Conversation.tsx  # Conversation lifecycle, status, transcript
-components/Transcript.tsx     # Render-only transcript list with empty state
-app/practice/page.tsx         # Route that hosts <Conversation />
+hooks/useConversation.ts     # Audio and turn state machine, Web Speech, fetch
+components/Conversation.tsx  # Layout, scenario picker toggle, transcript container
+components/Transcript.tsx    # Render-only transcript list with empty state
+app/practice/page.tsx        # Route that hosts <Conversation />
 ```
 
 ## Status state machine

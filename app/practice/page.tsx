@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { Conversation, type SavedConversation } from "@/components/Conversation";
+import { Conversation } from "@/components/Conversation";
+import type { SavedConversation } from "@/hooks/useConversation";
 import { getDb } from "@/lib/db";
 import { getLearner } from "@/lib/learner";
 import { isUuid } from "@/lib/learner-id";

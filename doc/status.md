@@ -43,7 +43,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 6. **No latency numbers.** Phase 4's p50/p90 gate needs a baseline, and nothing is measured today.
 7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`, and an English-only UI. That's fine for es → en as long as the native language is stored, but A1 learners need Spanish UI text.
 8. **The prompt is the same for every learner.** `getSystemPrompt(scenarioId)` has no input for CEFR level or a learner summary.
-9. **`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`. It's not blocking, but Phase 2 adds session saving and Phase 4 replaces the audio layer here, so split it before it grows.
+9. ~~**`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`.~~ Fixed: state machine moved to `hooks/useConversation.ts` and hex colors replaced with design tokens (FLU-26).
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
 
 ## What to work on
@@ -76,7 +76,7 @@ Done when: a first visit creates exactly one learner row, a reload reuses it, an
 - [x] **Load from the database.** Done (FLU-23). The client sends only the new `message`; the route builds the history from `session_turns` with `buildHistory()`. `/practice?session=<id>` reloads the conversation from the database, for the learner's own open sessions only.
 - [ ] **Session history page.** List past sessions and open a read-only transcript.
 - [ ] **Latency logging.** Server: time to first token per turn in `route.ts`. Client: time from send to `speakText` `onStart` in `Conversation.tsx`. Store both per turn in `session_turns`.
-- [ ] **Split `Conversation.tsx`.** Move the audio and turn state machine into a hook (for example `useConversation`) and keep the component for layout. Replace raw hex values with `DESIGN.md` tokens while you're there.
+- [x] **Split `Conversation.tsx`.** Done (FLU-26). Move the audio and turn state machine into a hook (for example `useConversation`) and keep the component for layout. Replace raw hex values with `DESIGN.md` tokens while you're there.
 - [ ] **Evaluation harness skeleton.** A `scripts/eval` entry point, a golden-set file format (`input`, `expected_edits`, `is_error_free`) and a report of over-correction rate and edit counts. It can start with 10 hand-written sentences.
 
 Done when: a reload shows the same conversation, every turn has latency numbers, and `pnpm eval` prints a report.
