@@ -22,11 +22,13 @@ export function streamClaudeReply(options: {
   baseURL?: string;
   system: string;
   messages: ChatTurn[];
+  model?: keyof typeof CLAUDE_MODELS;
+  maxTokens?: number;
 }): TextReply {
   const client = new Anthropic({ apiKey: options.apiKey, baseURL: options.baseURL });
   const stream = client.messages.stream({
-    model: CLAUDE_MODELS.conversation,
-    max_tokens: 1500,
+    model: CLAUDE_MODELS[options.model ?? "conversation"],
+    max_tokens: options.maxTokens ?? 1500,
     system: options.system,
     messages: options.messages,
     output_config: { effort: "low" },

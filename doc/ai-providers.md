@@ -10,6 +10,7 @@ A single selection function picks a provider and its key, then dispatches to a s
 
 ```
 lib/provider.ts        # resolveProvider (env-var logic)
+lib/ai.ts              # streamReply and generateText (single provider switch)
 lib/anthropic.ts       # streamClaudeReply (Claude and OpenCode via @anthropic-ai/sdk)
 lib/google.ts          # streamGoogleReply (Google via fetch + manual SSE)
 lib/prompts.ts         # getSystemPrompt (system prompt per scenario)
@@ -70,7 +71,7 @@ Both stream functions return `TextReply`, an object with:
 - `text: AsyncIterable<string>` — the streamed text fragments.
 - `abort: () => void` — cancel the upstream call.
 
-This is what `app/api/chat/route.ts` consumes.
+`lib/ai.ts` is the single place that picks the provider; `generateText` is for one-shot feedback-model calls.
 
 ## Notes
 

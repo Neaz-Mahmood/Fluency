@@ -1,10 +1,9 @@
 import { after } from "next/server";
 
-import { OPENCODE_BASE_URL, streamClaudeReply } from "@/lib/anthropic";
+import { streamReply } from "@/lib/ai";
 import { buildHistory, parseChatRequest, type ChatTurn } from "@/lib/chat-request";
 import { getDb } from "@/lib/db";
 import type { LearnerProfile, Session } from "@/lib/db/schema";
-import { streamGoogleReply } from "@/lib/google";
 import { getLearner } from "@/lib/learner";
 import { getSystemPrompt } from "@/lib/prompts";
 import { resolveProvider } from "@/lib/provider";
@@ -57,19 +56,7 @@ export async function POST(request: Request) {
     return Response.json({ error: messages.error }, { status: 400 });
   }
 
-  const reply =
-    selected.provider === "google"
-      ? streamGoogleReply({
-          apiKey: selected.apiKey,
-          system: getSystemPrompt(parsed.scenarioId),
-          messages,
-        })
-      : streamClaudeReply({
-          apiKey: selected.apiKey,
-          baseURL: selected.provider === "opencode" ? OPENCODE_BASE_URL : undefined,
-          system: getSystemPrompt(parsed.scenarioId),
-          messages,
-        });
+  const reply = streamReply(selected, { system: getSystemPrompt(parsed.scenarioId), messages });
 
   let started: StartedReply;
   try {

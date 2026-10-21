@@ -73,6 +73,7 @@ export function streamGoogleReply(options: {
   apiKey: string;
   system: string;
   messages: ChatTurn[];
+  maxTokens?: number;
 }): TextReply {
   const controller = new AbortController();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_MODEL}:streamGenerateContent?alt=sse`;
@@ -93,7 +94,7 @@ export function streamGoogleReply(options: {
             role: message.role === "assistant" ? "model" : "user",
             parts: [{ text: message.content }],
           })),
-          generationConfig: { maxOutputTokens: 1500 },
+          generationConfig: { maxOutputTokens: options.maxTokens ?? 1500 },
         }),
       });
 
