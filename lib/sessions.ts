@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, isNull, max } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, max } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import { sessions, sessionTurns, type Session } from "@/lib/db/schema";
@@ -24,6 +24,44 @@ export async function findOpenSession(
       ),
     );
   return existing ?? null;
+}
+
+// The learner's session whether open or ended, preventing cross-learner access.
+export async function findSession(
+  db: Db,
+  options: { learnerId: string; sessionId: string },
+): Promise<Session | null> {
+  const [existing] = await db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        eq(sessions.sessionId, options.sessionId),
+        eq(sessions.learnerId, options.learnerId),
+      ),
+    );
+  return existing ?? null;
+}
+
+export const HISTORY_LIMIT = 50;
+
+// The learner's sessions, newest first, with their turn counts.
+export async function listSessions(db: Db, learnerId: string) {
+  return db
+    .select({
+      sessionId: sessions.sessionId,
+      mode: sessions.mode,
+      scenarioId: sessions.scenarioId,
+      startedAt: sessions.startedAt,
+      endedAt: sessions.endedAt,
+      turnCount: count(sessionTurns.turnId),
+    })
+    .from(sessions)
+    .leftJoin(sessionTurns, eq(sessionTurns.sessionId, sessions.sessionId))
+    .where(eq(sessions.learnerId, learnerId))
+    .groupBy(sessions.sessionId)
+    .orderBy(desc(sessions.startedAt))
+    .limit(HISTORY_LIMIT);
 }
 
 export async function startSession(

@@ -6,6 +6,7 @@ Fluency is a voice-first practice partner for spoken English. You pick a scenari
 
 - **Phase 0** — Next.js 16 app with TypeScript, Tailwind v4, shadcn-style UI primitives, and a streaming chat route that can call Claude or Google.
 - **Phase 1** — a scenario picker, browser-based speech recognition, spoken replies via the Web Speech API, and a typed fallback for browsers without a microphone.
+- **Session history** — past conversations listed at `/history` and opened as read-only transcripts at `/history/[sessionId]`.
 
 ## Feature pages
 
