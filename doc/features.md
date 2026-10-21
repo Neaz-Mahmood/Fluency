@@ -10,6 +10,9 @@ Fluency is a voice-first practice partner for spoken English. You pick a scenari
 - **Language settings and onboarding** — Bangla-first onboarding at `/onboarding` to choose native language (`bn-BD`), and a language section in `/settings` to view or change it.
 - **Placement chat** — a 6-question diagnostic conversation at `/placement` that estimates initial speaking and writing CEFR levels using the feedback model.
 - **Bangla UI strings** — message dictionary providing Bangla UI strings for the home page, scenario picker, practice controls, transcripts, and client error messages when the learner's native language is `bn-BD`.
+- **Latency logging** — server time to first token and client time to first audio are saved on every assistant turn in `session_turns`.
+- **Evaluation harness** — `pnpm eval` scores a corrector against a golden set of Bangla-speaker sentences and reports over-correction.
+- **Learner-aware prompt and summary** — the system prompt adapts to the learner's CEFR level and native language, and includes a short note about them that is rebuilt when they press "Switch scenario".
 
 ## Feature pages
 
@@ -22,6 +25,8 @@ Fluency is a voice-first practice partner for spoken English. You pick a scenari
 | `POST /api/chat` | [api.md](./api.md) |
 | AI provider selection and streaming | [ai-providers.md](./ai-providers.md) |
 | Spoken replies (TTS) | [spoken-replies.md](./spoken-replies.md) |
+| Placement chat | [placement.md](./placement.md) |
+| Evaluation harness | [evaluation.md](./evaluation.md) |
 
 ## App shell
 
@@ -29,4 +34,4 @@ The home page (`app/page.tsx`) introduces the app, lays out a three-step explain
 
 ## What is not in this build
 
-Accounts, saved transcripts, and the post-conversation feedback pass are later phases. See [out-of-scope.md](./out-of-scope.md) for the full list.
+Accounts (sign-in), the post-conversation feedback pass and Spanish are later phases. See [out-of-scope.md](./out-of-scope.md) for the full list.

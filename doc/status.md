@@ -2,7 +2,7 @@
 
 Where Fluency stands today and what to work on next. The long-range plan is in [roadmap.md](./roadmap.md). This page turns its next steps into concrete tasks against the current code.
 
-Last checked: 2026-10-20.
+Last checked: 2026-10-22.
 
 ## What it is
 
@@ -10,41 +10,52 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 
 ## Current status
 
-### Built and working (Phases 0–1)
+### Built and working (Phases 0–2)
 
-| Area                                                                              | State                       | Where                                                                           |
-| --------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------- |
-| App shell, home page, practice route                                              | Working                     | `app/layout.tsx`, `app/page.tsx`, `app/practice/page.tsx`                       |
-| Four scenarios                                                                    | Working                     | `lib/scenarios.ts`, `components/ScenarioPicker.tsx`                             |
-| Streaming chat with Claude, Gemini or OpenCode                                    | Working                     | `app/api/chat/route.ts`, `lib/anthropic.ts`, `lib/google.ts`, `lib/provider.ts` |
-| Request validation (alternating turns, max 40 turns, max 2,000 chars per message) | Working                     | `lib/chat-request.ts`                                                           |
-| Hold-to-talk and hands-free voice input (Web Speech, Chrome)                      | Working                     | `lib/stt.ts`, `components/Conversation.tsx`                                     |
-| Spoken replies, split into sentences (Web Speech)                                 | Working                     | `lib/tts.ts`                                                                    |
-| Typed fallback                                                                    | Working                     | `components/Conversation.tsx`                                                   |
-| Implicit correction (the partner rephrases unclear English)                       | Working, in the prompt only | `lib/prompts.ts`                                                                |
+| Area                                                                                      | State                       | Where                                                                           |
+| ----------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------- |
+| App shell, home page, practice route                                                      | Working                     | `app/layout.tsx`, `app/page.tsx`, `app/practice/page.tsx`                       |
+| Four scenarios                                                                            | Working                     | `lib/scenarios.ts`, `components/ScenarioPicker.tsx`                             |
+| Streaming chat with Claude, Gemini or OpenCode                                            | Working                     | `app/api/chat/route.ts`, `lib/anthropic.ts`, `lib/google.ts`, `lib/provider.ts` |
+| Request validation (max 40 turns, max 2,000 chars per message, history from the database) | Working                     | `lib/chat-request.ts`                                                           |
+| Hold-to-talk and hands-free voice input (Web Speech, Chrome)                              | Working                     | `lib/stt.ts`, `hooks/useConversation.ts`                                        |
+| Spoken replies, split into sentences (Web Speech)                                         | Working                     | `lib/tts.ts`                                                                    |
+| Typed fallback                                                                            | Working                     | `hooks/useConversation.ts`, `components/ConversationControls.tsx`               |
+| Implicit correction (the partner rephrases unclear English)                               | Working, in the prompt only | `lib/prompts.ts`                                                                |
+| Anonymous learners and "Delete my data"                                                   | Working                     | `proxy.ts`, `lib/learner.ts`, `app/settings/`                                   |
+| Saved sessions and session history                                                        | Working                     | `lib/sessions.ts`, `app/history/`                                               |
+| Latency logging (first token, first audio)                                                | Working                     | `app/api/chat/route.ts`, `app/practice/actions.ts`                              |
+| Evaluation harness (pnpm eval)                                                            | Working                     | `scripts/eval/`                                                                 |
+| Onboarding and native-language setting                                                    | Working                     | `app/onboarding/`, `lib/languages.ts`                                           |
+| Bangla UI                                                                                 | Working                     | `lib/messages.ts`                                                               |
+| Placement chat (provisional CEFR level)                                                   | Working                     | `app/placement/`, `lib/placement.ts`                                            |
+| Learner-aware prompt and learner summary                                                  | Working                     | `lib/prompts.ts`, `lib/summary.ts`, `app/practice/actions.ts`                   |
 
 ### Health checks
 
-| Check           | Result                                                                                                                                                                                            |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tsc --noEmit`  | Passes                                                                                                                                                                                            |
-| `eslint .`      | Passes, no warnings                                                                                                                                                                               |
-| `next build`    | Passes. `/api/chat` is dynamic; `/` and `/practice` are static.                                                                                                                                   |
-| Automated tests | `pnpm test`: 87 unit tests (request validation and history, provider selection, learner id, proxy, provider errors, reply time limits). `pnpm test:db`: 22 database tests against `fluency_test`. |
-| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`.                                                                                                                                         |
+| Check           | Result                                                                                                                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tsc --noEmit`  | Passes                                                                                                                                                                                                |
+| `eslint .`      | Passes, no warnings                                                                                                                                                                                   |
+| `next build`    | Passes. `/api/chat` is dynamic; `/`, `/practice`, `/history`, `/history/[sessionId]`, `/onboarding`, `/placement` and `/settings` are partially prerendered (static shell, learner data streamed in). |
+| Automated tests | `pnpm test`: 157 unit tests in 15 files. `pnpm test:db`: 35 database tests in 2 files against `fluency_test`.                                                                                         |
+| `pnpm eval`     | Runs. Baseline "no edits" corrector on 10 golden sentences (4 error-free): over-correction 0/4 (0.0%), edits expected 6, predicted 0, matched 0.                                                      |
+| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`.                                                                                                                                             |
 
 ### Gaps and risks in the current code
 
 1. ~~**No version control.**~~ Fixed: the repo is in git and on GitHub.
 2. **`/api/chat` is open.** Login is built last (end of Phase 5), so the route stays open until then. Run the app locally, or set the optional `ACCESS_CODE` gate (Week 1) before deploying it anywhere testers can reach. Otherwise anyone with the URL can spend the API key.
 3. ~~**Two lockfiles.**~~ Fixed: pnpm only.
-4. ~~**No tests.**~~ Fixed for the pure server modules. The UI and the streaming route still have no tests.
+4. ~~**No tests.**~~ Fixed for the server modules. The UI, the `/api/chat` route and the Server Functions still have no automated tests.
 5. ~~**Everything is in memory.**~~ Fixed: turns are saved (FLU-22) and a reload loads them back from the database (FLU-23).
 6. ~~**No latency numbers.**~~ Fixed: server time to first token and client time to first audio are recorded per assistant turn in `session_turns` (FLU-25).
 7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`. Fixed for the UI (FLU-29): Bangla speakers see Bangla UI text; `/api/chat` error messages, the nav, settings, history list and the partner's replies stay English.
 8. ~~**The prompt is the same for every learner.**~~ Fixed: `getSystemPrompt(scenarioId, learner)` adapts to the learner's CEFR speaking level, native language, and compact tutor summary (FLU-32).
 9. ~~**`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`.~~ Fixed: state machine moved to `hooks/useConversation.ts` and hex colors replaced with design tokens (FLU-26).
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
+11. **Placement's token limit is tight.** `finishPlacement` gives the feedback model `maxTokens: 200`, and Opus 5.5's thinking counts toward it, so the levels can be cut off. Tracked in FLU-38.
+12. **A closed tab builds no summary.** Only "Switch scenario" ends a session and builds the learner summary (FLU-31).
 
 ### Latency baseline
 
@@ -107,11 +118,11 @@ Done when: a new learner completes placement, finishes one session, and their ne
 
 ### Phase 2 exit check
 
-- [ ] Transcripts persist across reloads in the same browser.
-- [ ] Placement finishes in 6 turns or fewer.
-- [ ] The summary stays under 250 tokens on 20 test profiles.
-- [ ] "Delete my data" leaves no rows (test passes).
-- [ ] Latency is logged on every turn, and a baseline p50/p90 is written into this page.
+- [x] Transcripts persist across reloads in the same browser. `/practice?session=<id>` reloads the learner's open session from the database (FLU-23); `lib/sessions.db.test.ts`.
+- [x] Placement finishes in 6 turns or fewer. `/api/chat` answers a 7th placement answer with 409 before calling the model (FLU-30); checked live, no automated route test.
+- [x] The summary stays under 250 tokens on 20 test profiles. `lib/summary.test.ts` ("FLU-31 20 test profiles check").
+- [x] "Delete my data" leaves no rows (test passes). `lib/learner.db.test.ts` seeds all 7 tables and checks they are empty after the delete.
+- [ ] Latency is logged on every turn, and a baseline p50/p90 is written into this page. Logging is in place; the p50/p90 baseline needs real spoken sessions (see Latency baseline).
 
 ## After Phase 2
 
