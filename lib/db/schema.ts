@@ -22,7 +22,7 @@ import {
 // Learner model and FSRS schema. Based on the research schema, with the changes in
 // doc/roadmap.md (Phase 2): nullable user_id for login, sessions/turns, and voice_usage.
 
-export const langCode = pgEnum("lang_code", ["en-US", "en-GB", "es-ES", "es-MX"]);
+export const langCode = pgEnum("lang_code", ["en-US", "en-GB", "es-ES", "es-MX", "bn-BD"]);
 export const cefrLevel = pgEnum("cefr_level", ["A1", "A2", "B1", "B2", "C1", "C2"]);
 export const fsrsState = pgEnum("fsrs_state", ["New", "Learning", "Review", "Relearning"]);
 export const errorModality = pgEnum("error_modality", [

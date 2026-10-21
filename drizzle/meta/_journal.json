@@ -8,6 +8,13 @@
       "when": 1792488957056,
       "tag": "0000_learner_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792573966855,
+      "tag": "0001_native_bangla",
+      "breakpoints": true
     }
   ]
 }

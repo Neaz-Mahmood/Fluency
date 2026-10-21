@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { Suspense } from "react";
 
 import { Conversation } from "@/components/Conversation";
 import type { SavedConversation } from "@/hooks/useConversation";
 import { getDb } from "@/lib/db";
+import type { LearnerProfile } from "@/lib/db/schema";
 import { getLearner } from "@/lib/learner";
 import { isUuid } from "@/lib/learner-id";
 import { isScenarioId } from "@/lib/scenarios";
@@ -26,15 +28,30 @@ export default function PracticePage({ searchParams }: { searchParams: SearchPar
 
 async function PracticeConversation({ searchParams }: { searchParams: SearchParams }) {
   const { session } = await searchParams;
-  return <Conversation saved={await loadSavedConversation(session)} />;
+  let learner: LearnerProfile | null = null;
+  try {
+    learner = await getLearner();
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Could not load the learner.", error);
+  }
+
+  if (learner && learner.nativeLanguage === null) {
+    redirect("/onboarding");
+  }
+
+  const saved = learner ? await loadSavedConversation(learner, session) : null;
+  return <Conversation saved={saved} />;
 }
 
 // The conversation in ?session=, so a reload shows it again. Only the learner's own open
 // sessions load; anything else starts a fresh conversation.
-async function loadSavedConversation(sessionId: unknown): Promise<SavedConversation | null> {
+async function loadSavedConversation(
+  learner: LearnerProfile,
+  sessionId: unknown,
+): Promise<SavedConversation | null> {
   if (!isUuid(sessionId)) return null;
   try {
-    const learner = await getLearner();
     const session = await findOpenSession(getDb(), { learnerId: learner.learnerId, sessionId });
     if (!session?.scenarioId || !isScenarioId(session.scenarioId)) return null;
     return {

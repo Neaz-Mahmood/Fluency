@@ -38,6 +38,7 @@ const {
   ensureLearnerProfile,
   getLearner,
   LearnerUnavailableError,
+  setNativeLanguage,
 } = await import("@/lib/learner");
 
 const db = createTestDb();
@@ -106,6 +107,23 @@ describe("getLearner", () => {
     cookieStore.current = value;
     await expect(getLearner()).rejects.toBeInstanceOf(LearnerUnavailableError);
     expect(await learnerCount()).toBe(0);
+  });
+});
+
+describe("setNativeLanguage", () => {
+  it("sets nativeLanguage to bn-BD and keeps targetLanguage en-US", async () => {
+    const id = newLearnerId();
+    await ensureLearnerProfile(db, id);
+
+    await setNativeLanguage(db, id, "bn-BD");
+
+    const [profile] = await db
+      .select()
+      .from(learnerProfiles)
+      .where(eq(learnerProfiles.learnerId, id));
+
+    expect(profile?.nativeLanguage).toBe("bn-BD");
+    expect(profile?.targetLanguage).toBe("en-US");
   });
 });
 

@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 
 import { getDb, type Db } from "@/lib/db";
 import { learnerProfiles, type LearnerProfile } from "@/lib/db/schema";
+import { TARGET_LANGUAGE, type NativeLanguage } from "@/lib/languages";
 import { LEARNER_COOKIE, isLearnerId } from "@/lib/learner-id";
 
 export class LearnerUnavailableError extends Error {}
@@ -53,4 +54,19 @@ export async function deleteCurrentLearner(): Promise<void> {
     await deleteLearner(getDb(), learnerId);
   }
   store.delete(LEARNER_COOKIE);
+}
+
+// Sets the learner's native language and pins the target language to English.
+export async function setNativeLanguage(
+  db: Db,
+  learnerId: string,
+  nativeLanguage: NativeLanguage,
+): Promise<void> {
+  await db
+    .update(learnerProfiles)
+    .set({
+      nativeLanguage,
+      targetLanguage: TARGET_LANGUAGE,
+    })
+    .where(eq(learnerProfiles.learnerId, learnerId));
 }

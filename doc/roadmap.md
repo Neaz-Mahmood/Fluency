@@ -13,7 +13,7 @@ The MVP includes login (email and password, plus Google), but login is built **l
 These decisions apply to every phase. They are the main ways this plan differs from the research plan.
 
 - **Web first, in the existing Next.js app.** No Expo rewrite during the MVP. Browsers already do echo cancellation (`getUserMedia({ echoCancellation: true })`), and LiveKit has a browser SDK. Mobile comes after the MVP.
-- **One learning direction: Spanish speakers learning English (es → en).** This matches the current English-only app and halves the golden sets, the pronunciation rules and the content work. English speakers learning Spanish (en → es) comes after the MVP.
+- **One learning direction: Bangla speakers learning English (bn → en) first, because the team can review Bangla; Spanish speakers (es → en) next, added as a new native language (enum value, `lib/languages.ts` entry, dictionary, golden set).** This matches the current English-only app and halves the golden sets, the pronunciation rules and the content work. English speakers learning Spanish (en → es) comes after the MVP.
 - **The live turn only talks; feedback happens after the session.** The fast model in the voice loop writes the reply and nothing else. Grammar correction runs on the saved transcript with the feedback model (`CLAUDE_MODELS.feedback` in `lib/anthropic.ts`). This keeps latency low and puts correction on a model strong enough to do it with high precision.
 - **Correct only real errors (precision first).** Never set a target error count in a prompt. At least 40% of few-shot examples are error-free and map to `edits: []`. Every correction has two tracks: `minimal_correction` (only real errors) and `fluency_upgrade` (optional, labeled as style).
 - **Measure from week 1.** The evaluation harness and latency tracking ship in Phase 2, not later. Each phase gate below assumes they exist.
@@ -41,8 +41,8 @@ Fluency remembers you and what you said.
 
 ### Learning and AI
 
-- Language settings: native language `es` and target language `en-US`. Only the A1–A2 explanations use the native language.
-- Spanish UI strings for the basic screens, so A1 learners can find their way around.
+- Language settings: native language `bn-BD` and target language `en-US`. Only the A1–A2 explanations use the native language.
+- Bangla UI strings for the basic screens, so A1 learners can find their way around.
 - Placement chat (6 turns or fewer) that sets a **provisional** speaking and writing CEFR level. Reading and listening start at the speaking level and are refined from real sessions. A chat can't measure them directly.
 - Compact learner summary (under 250 tokens) built by the worker after each session and added to the system prompt from `lib/prompts.ts`.
 
