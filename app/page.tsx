@@ -1,45 +1,47 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { ArrowRight, Headphones, MessageSquareText, Mic } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { getLearner } from "@/lib/learner";
+import { getMessages } from "@/lib/messages";
 
-const steps = [
-  {
-    number: "01",
-    icon: Mic,
-    title: "You speak",
-    body: "Hold the mic and say a sentence. Fast in-browser speech recognition transcribes your words immediately.",
-  },
-  {
-    number: "02",
-    icon: MessageSquareText,
-    title: "A partner answers",
-    body: "Your partner responds in natural, spoken English tailored to your scenario, maintaining operational flow.",
-  },
-  {
-    number: "03",
-    icon: Headphones,
-    title: "You hear it",
-    body: "The reply is vocalized aloud via speech synthesis, seamlessly returning the conversation back to you.",
-  },
-];
+const STEP_ICONS = [Mic, MessageSquareText, Headphones];
 
 export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+async function HomeContent() {
+  let nativeLanguage: string | null = null;
+  try {
+    nativeLanguage = (await getLearner()).nativeLanguage;
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Could not load the learner.", error);
+  }
+  const { home } = getMessages(nativeLanguage);
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-14 py-4 sm:py-8">
       {/* Hero Section */}
       <section className="flex flex-col items-start gap-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-[#06bee1]/35 bg-[#06bee1]/12 px-3 py-1 text-xs font-semibold tracking-wider text-[#03256c] uppercase">
           <span className="size-2 rounded-full bg-[#06bee1] shadow-[0_0_8px_#06bee1]" />
-          Spoken English Training
+          {home.badge}
         </div>
 
         <h1 className="max-w-2xl font-heading text-4xl font-bold tracking-tight text-[#03256c] sm:text-5xl lg:text-6xl">
-          Speak until the words come easily.
+          {home.title}
         </h1>
 
         <p className="max-w-xl text-base leading-relaxed text-[#556b82] sm:text-lg">
-          Fluency provides an immediate, voice-first conversation partner. Select a realistic scenario, speak aloud, and engage in real-time dialogue without friction.
+          {home.description}
         </p>
 
         <div className="flex flex-wrap items-center gap-4 pt-2">
@@ -49,7 +51,7 @@ export default function Home() {
             size="lg"
             className="group gap-2.5 rounded"
           >
-            Start practicing
+            {home.startPracticing}
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
           </Button>
 
@@ -60,18 +62,18 @@ export default function Home() {
             size="lg"
             className="rounded"
           >
-            Browse scenarios
+            {home.browseScenarios}
           </Button>
         </div>
       </section>
 
       {/* Feature Cards Grid (Level 1 Surfaces) */}
       <section className="grid gap-6 sm:grid-cols-3">
-        {steps.map((step) => {
-          const Icon = step.icon;
+        {home.steps.map((step, index) => {
+          const Icon = STEP_ICONS[index];
           return (
             <article
-              key={step.title}
+              key={step.number}
               className="group flex flex-col rounded-lg border border-[#d8e2ed] bg-white p-6 shadow-[0_2px_8px_-2px_rgba(3,37,108,0.05)] transition-all hover:border-[#1768ac] hover:shadow-[0_8px_24px_-4px_rgba(3,37,108,0.08)]"
             >
               <div className="mb-4 flex items-center justify-between border-b border-[#d8e2ed] pb-4">
@@ -98,13 +100,13 @@ export default function Home() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <span className="text-[11px] font-semibold tracking-wider text-[#0461a4] uppercase">
-              Operational Focus
+              {home.panelBadge}
             </span>
             <h3 className="font-heading text-xl font-semibold text-[#03256c]">
-              Designed for spoken muscle memory
+              {home.panelTitle}
             </h3>
             <p className="max-w-xl text-sm text-[#556b82]">
-              Real-world conversations require immediate vocal retrieval. Fluency bypasses passive exercises to build verbal confidence in low-stakes simulation.
+              {home.panelBody}
             </p>
           </div>
           <div className="flex shrink-0 items-center">
@@ -114,7 +116,7 @@ export default function Home() {
               variant="secondary"
               className="rounded"
             >
-              Launch Session
+              {home.panelCta}
             </Button>
           </div>
         </div>

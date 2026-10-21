@@ -2,6 +2,7 @@
 
 import { FormEvent, PointerEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import type { Messages } from "@/lib/messages";
 import type { ScenarioId } from "@/lib/scenarios";
 import { recordFirstAudio } from "@/app/practice/actions";
 import { isSpeechRecognitionSupported, startListening, type ListeningSession } from "@/lib/stt";
@@ -29,9 +30,11 @@ const HOLD_THRESHOLD_MS = 280;
 export function useConversation({
   target,
   saved,
+  messages,
 }: {
   target: ChatTarget | null;
   saved: SavedConversation | null;
+  messages: Messages;
 }) {
   const [turns, setTurns] = useState<Turn[]>(saved?.turns ?? []);
   const [status, setStatus] = useState<Status>("idle");
@@ -113,8 +116,8 @@ export function useConversation({
     const session = startListening({
       continuous,
       onUpdate: (text) => setInterim(text),
-      onError: (message) => {
-        setError(message);
+      onError: (code) => {
+        setError(messages.speech[code]);
         setStatus("idle");
         setInterim("");
       },
@@ -131,7 +134,7 @@ export function useConversation({
 
     if (!session) {
       setStatus("idle");
-      setError("This browser cannot hear you. Type your line instead.");
+      setError(messages.errors.cannotHear);
       return;
     }
     sessionRef.current = session;
@@ -189,12 +192,12 @@ export function useConversation({
         ) {
           throw caughtFetch;
         }
-        throw new Error("The conversation partner could not reply.");
+        throw new Error(messages.errors.partnerFailed);
       }
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "The conversation partner could not reply.");
+        throw new Error(payload?.error ?? messages.errors.partnerFailed);
       }
 
       const sessionId = response.headers.get("X-Session-Id");
@@ -206,7 +209,7 @@ export function useConversation({
       }
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error("The conversation partner could not reply.");
+      if (!reader) throw new Error(messages.errors.partnerFailed);
 
       const decoder = new TextDecoder();
       setTurns((current) => [...current, { id: assistantId, role: "assistant", content: "" }]);
@@ -225,7 +228,7 @@ export function useConversation({
 
       if (!isCurrent(token)) return;
       const finalReply = received.trim();
-      if (!finalReply) throw new Error("The partner did not say anything. Try again.");
+      if (!finalReply) throw new Error(messages.errors.emptyReply);
 
       setTurns((current) =>
         current.map((turn) => (turn.id === assistantId ? { ...turn, content: finalReply } : turn)),
@@ -241,14 +244,14 @@ export function useConversation({
             turn.id === assistantId ? { ...turn, content: received.trim() } : turn,
           ),
         );
-        setError("The reply was cut off. You can keep going.");
+        setError(messages.errors.cutoff);
       } else {
         setTurns((current) =>
           current.filter((turn) => turn.id !== userTurn.id && turn.id !== assistantId),
         );
         setDraft(content);
         setError(
-          caught instanceof Error ? caught.message : "The conversation partner could not reply.",
+          caught instanceof Error ? caught.message : messages.errors.partnerFailed,
         );
       }
       setStatus("idle");
@@ -278,7 +281,7 @@ export function useConversation({
       onError: () => {
         if (!isCurrent(token)) return;
         setStatus("idle");
-        setError("The reply could not be spoken. You can still read it.");
+        setError(messages.errors.speakFailed);
       },
       onEnd: () => {
         cancelSpeechRef.current = null;

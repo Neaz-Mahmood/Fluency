@@ -8,6 +8,7 @@ Fluency is a voice-first practice partner for spoken English. You pick a scenari
 - **Phase 1** — a scenario picker, browser-based speech recognition, spoken replies via the Web Speech API, and a typed fallback for browsers without a microphone.
 - **Session history** — past conversations listed at `/history` and opened as read-only transcripts at `/history/[sessionId]`.
 - **Language settings and onboarding** — Bangla-first onboarding at `/onboarding` to choose native language (`bn-BD`), and a language section in `/settings` to view or change it.
+- **Bangla UI strings** — message dictionary providing Bangla UI strings for the home page, scenario picker, practice controls, transcripts, and client error messages when the learner's native language is `bn-BD`.
 
 ## Feature pages
 
@@ -23,7 +24,7 @@ Fluency is a voice-first practice partner for spoken English. You pick a scenari
 
 ## App shell
 
-The home page (`app/page.tsx`) introduces the app, lays out a three-step explainer, and links to `/practice`. The practice route (`app/practice/page.tsx`) hosts the `<Conversation />` component. A sticky brand header and nav are rendered from `app/layout.tsx`.
+The home page (`app/page.tsx`) introduces the app, lays out a three-step explainer, and links to `/practice`. The practice route (`app/practice/page.tsx`) hosts the `<Conversation />` component. A sticky brand header and nav are rendered from `app/layout.tsx`. UI text comes from `lib/messages.ts` (English and Bangla), picked on the server from the learner's native language and passed down as a `messages` prop.
 
 ## What is not in this build
 

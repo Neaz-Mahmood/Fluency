@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db";
 import type { LearnerProfile } from "@/lib/db/schema";
 import { getLearner } from "@/lib/learner";
 import { isUuid } from "@/lib/learner-id";
+import { getMessages } from "@/lib/messages";
 import { isScenarioId } from "@/lib/scenarios";
 import { findOpenSession, loadTurns } from "@/lib/sessions";
 
@@ -41,7 +42,7 @@ async function PracticeConversation({ searchParams }: { searchParams: SearchPara
   }
 
   const saved = learner ? await loadSavedConversation(learner, session) : null;
-  return <Conversation saved={saved} />;
+  return <Conversation saved={saved} messages={getMessages(learner?.nativeLanguage)} />;
 }
 
 // The conversation in ?session=, so a reload shows it again. Only the learner's own open

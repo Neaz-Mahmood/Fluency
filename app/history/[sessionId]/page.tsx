@@ -8,6 +8,7 @@ import { Transcript } from "@/components/Transcript";
 import { getDb } from "@/lib/db";
 import { getLearner } from "@/lib/learner";
 import { isUuid } from "@/lib/learner-id";
+import { getMessages } from "@/lib/messages";
 import { findSession, loadTurns } from "@/lib/sessions";
 
 export const metadata: Metadata = {
@@ -60,7 +61,7 @@ async function HistoryDetail({ params }: { params: Params }) {
       </div>
 
       <div className="flex min-h-96 flex-1 flex-col overflow-y-auto rounded-lg border border-oceanic-border bg-oceanic-subtle p-5 shadow-inner">
-        <Transcript turns={turns} interim="" />
+        <Transcript turns={turns} interim="" messages={getMessages(learner.nativeLanguage)} />
       </div>
     </div>
   );

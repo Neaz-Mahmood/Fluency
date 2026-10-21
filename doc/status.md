@@ -41,7 +41,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 4. ~~**No tests.**~~ Fixed for the pure server modules. The UI and the streaming route still have no tests.
 5. ~~**Everything is in memory.**~~ Fixed: turns are saved (FLU-22) and a reload loads them back from the database (FLU-23).
 6. ~~**No latency numbers.**~~ Fixed: server time to first token and client time to first audio are recorded per assistant turn in `session_turns` (FLU-25).
-7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`, and an English-only UI. That's fine for bn → en as long as the native language is stored, but A1 learners need Bangla UI text.
+7. **Hard-coded English.** `lang = "en-US"` in `lib/stt.ts` and `lib/tts.ts`. Fixed for the UI (FLU-29): Bangla speakers see Bangla UI text; `/api/chat` error messages, the nav, settings, history list and the partner's replies stay English.
 8. **The prompt is the same for every learner.** `getSystemPrompt(scenarioId)` has no input for CEFR level or a learner summary.
 9. ~~**`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`.~~ Fixed: state machine moved to `hooks/useConversation.ts` and hex colors replaced with design tokens (FLU-26).
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
@@ -98,7 +98,7 @@ Done when: a reload shows the same conversation, every turn has latency numbers,
 #### Week 3: Learner model and placement
 
 - [x] **Language settings.** Done (FLU-28): onboarding sets the native language on the learner profile and sends learners without one there before they practice.
-- [ ] **Bangla UI strings.** A small message dictionary for the home page, the scenario picker, the practice controls and error messages (including the messages in `lib/stt.ts`), picked by the native-language setting.
+- [x] **Bangla UI strings.** Done (FLU-29): the home page, scenario picker, practice controls, transcript and speech/error messages come from an English or Bangla dictionary in `lib/messages.ts`, picked by the learner's native language.
 - [ ] **Placement chat.** A `placement` mode, separate from the four scenarios, that asks at most 6 questions and then makes one structured call to the feedback model to set provisional `cefr_speaking` and `cefr_writing`.
 - [ ] **Learner summary.** After a session ends, use `after()` to build `compact_tutor_summary` (under 250 tokens) from the profile and transcript. Change `getSystemPrompt(scenarioId)` to `getSystemPrompt(scenarioId, learner)` so it includes CEFR level, native language and summary.
 - [ ] **Level-aware prompt rules.** Add the A1–A2 / B1 / B2+ rules from the research to `lib/prompts.ts`, keeping the current "no lecture, no correction lists" rules.

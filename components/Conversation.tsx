@@ -7,15 +7,23 @@ import { ScenarioPicker } from "@/components/ScenarioPicker";
 import { Transcript } from "@/components/Transcript";
 import { Button } from "@/components/ui/button";
 import { useConversation, type SavedConversation } from "@/hooks/useConversation";
+import type { Messages } from "@/lib/messages";
 import { SCENARIOS, type ScenarioId } from "@/lib/scenarios";
 
-export function Conversation({ saved }: { saved: SavedConversation | null }) {
+export function Conversation({
+  saved,
+  messages,
+}: {
+  saved: SavedConversation | null;
+  messages: Messages;
+}) {
   const [scenarioId, setScenarioId] = useState<ScenarioId | null>(saved?.scenarioId ?? null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
   const conversation = useConversation({
     target: scenarioId ? { scenarioId } : null,
     saved,
+    messages,
   });
   const {
     turns,
@@ -44,6 +52,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
   if (!scenarioId || !scenario) {
     return (
       <ScenarioPicker
+        messages={messages}
         onSelect={(id) => {
           conversation.reset();
           setScenarioId(id);
@@ -55,14 +64,14 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
   const busy = status === "thinking" || status === "speaking";
   const statusLabel =
     status === "listening"
-      ? "Listening…"
+      ? messages.practice.statusListening
       : status === "thinking"
-        ? "Processing…"
+        ? messages.practice.statusThinking
         : status === "speaking"
-          ? "Speaking…"
+          ? messages.practice.statusSpeaking
           : handsFree
-            ? "Hands-free active"
-            : "Ready for input";
+            ? messages.practice.statusHandsFree
+            : messages.practice.statusReady;
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-4">
@@ -70,10 +79,10 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-oceanic-border pb-4">
         <div>
           <span className="text-[11px] font-semibold tracking-wider text-oceanic-secondary uppercase">
-            Active Scenario
+            {messages.practice.activeScenario}
           </span>
           <h1 className="font-heading text-2xl font-bold text-oceanic-imperial sm:text-3xl">
-            {scenario.title}
+            {messages.scenarios[scenarioId].title}
           </h1>
         </div>
         <Button
@@ -85,7 +94,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
             setScenarioId(null);
           }}
         >
-          Switch scenario
+          {messages.practice.switchScenario}
         </Button>
       </div>
 
@@ -95,7 +104,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
         className="flex min-h-96 flex-1 flex-col overflow-y-auto rounded-lg border border-oceanic-border bg-oceanic-subtle p-5 shadow-inner"
         aria-live="polite"
       >
-        <Transcript turns={turns} interim={interim} />
+        <Transcript turns={turns} interim={interim} messages={messages} />
       </div>
 
       {/* Action Control Panel (Level 2 Elevation) */}
@@ -131,7 +140,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
             <span
               className={`size-1.5 rounded-full ${handsFree ? "bg-oceanic-surge" : "bg-oceanic-outline-variant"}`}
             />
-            Hands-free
+            {messages.practice.handsFree}
           </button>
         </div>
 
@@ -143,9 +152,9 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
 
         {!speechReady ? (
           <p className="text-xs text-oceanic-muted">
-            Speech recognition is unavailable in this browser. You can type your lines, and replies
-            will be vocalized
-            {voiceReady ? "." : " if audio synthesis is available."}
+            {voiceReady
+              ? messages.practice.speechUnavailable
+              : messages.practice.speechUnavailableWithoutVoice}
           </p>
         ) : null}
 
@@ -167,7 +176,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
             <Mic
               className={`size-4 ${status === "listening" ? "text-oceanic-surge" : "text-white"}`}
             />
-            {status === "listening" ? "Release to send" : "Hold to talk"}
+            {status === "listening" ? messages.practice.releaseToSend : messages.practice.holdToTalk}
           </Button>
 
           {busy || status === "listening" ? (
@@ -178,7 +187,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
               onClick={interrupt}
             >
               <Square className="size-3.5 fill-current text-oceanic-error" />
-              Stop
+              {messages.practice.stop}
             </Button>
           ) : null}
         </div>
@@ -186,13 +195,13 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
         {/* Text Input Fallback (Oceanic Form Input) */}
         <form onSubmit={onSubmit} className="flex gap-2.5">
           <label className="sr-only" htmlFor="line">
-            Type a message
+            {messages.practice.typeMessage}
           </label>
           <input
             id="line"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Or type what you would say..."
+            placeholder={messages.practice.placeholder}
             disabled={status === "thinking"}
             className="h-10 min-w-0 flex-1 rounded border border-oceanic-border bg-white px-3.5 text-sm text-oceanic-imperial placeholder-oceanic-muted outline-none transition-all focus:border-oceanic-ocean focus:ring-2 focus:ring-oceanic-surge/30 disabled:opacity-50"
           />
@@ -201,7 +210,7 @@ export function Conversation({ saved }: { saved: SavedConversation | null }) {
             className="h-10 rounded px-5"
             disabled={!draft.trim() || status === "thinking"}
           >
-            Send
+            {messages.practice.send}
           </Button>
         </form>
       </div>

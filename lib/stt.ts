@@ -43,23 +43,36 @@ export function isSpeechRecognitionSupported(): boolean {
   return getRecognitionCtor() !== null;
 }
 
-const ERROR_MESSAGES: Record<string, string> = {
-  "not-allowed": "Microphone access is blocked. Allow the mic, or type instead.",
-  "service-not-allowed": "Speech recognition is unavailable in this browser.",
-  network: "Speech recognition needs a network connection in this browser.",
-  "audio-capture": "No microphone was found.",
-};
+export type SpeechErrorCode =
+  | "not-allowed"
+  | "service-not-allowed"
+  | "network"
+  | "audio-capture"
+  | "failed"
+  | "already-running";
 
 export type ListeningSession = {
   stop: () => void;
   abort: () => void;
 };
 
+function toSpeechErrorCode(error: string): SpeechErrorCode {
+  if (
+    error === "not-allowed" ||
+    error === "service-not-allowed" ||
+    error === "network" ||
+    error === "audio-capture"
+  ) {
+    return error;
+  }
+  return "failed";
+}
+
 export function startListening(options: {
   continuous: boolean;
   onUpdate: (text: string, isFinal: boolean) => void;
   onEnd: (finalText: string) => void;
-  onError: (message: string) => void;
+  onError: (code: SpeechErrorCode) => void;
 }): ListeningSession | null {
   const Ctor = getRecognitionCtor();
   if (!Ctor) return null;
@@ -90,7 +103,7 @@ export function startListening(options: {
 
   recognition.onerror = (event) => {
     if (event.error === "aborted" || event.error === "no-speech") return;
-    options.onError(ERROR_MESSAGES[event.error] ?? "Speech recognition failed.");
+    options.onError(toSpeechErrorCode(event.error));
   };
 
   recognition.onend = () => {
@@ -101,7 +114,7 @@ export function startListening(options: {
   try {
     recognition.start();
   } catch {
-    options.onError("Speech recognition is already running.");
+    options.onError("already-running");
     return null;
   }
 

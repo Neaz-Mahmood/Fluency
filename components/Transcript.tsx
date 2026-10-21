@@ -1,4 +1,5 @@
 import { Headphones, Mic } from "lucide-react";
+import type { Messages } from "@/lib/messages";
 
 type TranscriptTurn = {
   id: string;
@@ -9,9 +10,11 @@ type TranscriptTurn = {
 export function Transcript({
   turns,
   interim,
+  messages,
 }: {
   turns: TranscriptTurn[];
   interim: string;
+  messages: Messages;
 }) {
   if (turns.length === 0 && !interim) {
     return (
@@ -21,13 +24,13 @@ export function Transcript({
         </div>
         <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#d8e2ed] bg-[#f4f7fb] px-2.5 py-0.5 text-[11px] font-semibold tracking-wider text-[#0461a4] uppercase">
           <span className="size-1.5 rounded-full bg-[#06bee1]" />
-          Ready to listen
+          {messages.transcript.ready}
         </div>
         <h3 className="font-heading text-lg font-semibold text-[#03256c]">
-          Start the conversation
+          {messages.transcript.emptyTitle}
         </h3>
         <p className="mt-1.5 text-sm leading-relaxed text-[#556b82]">
-          Hold the talk button to speak naturally, or type a sentence below to begin your dialogue.
+          {messages.transcript.emptyBody}
         </p>
       </div>
     );
@@ -55,12 +58,12 @@ export function Transcript({
               {turn.role === "user" ? (
                 <>
                   <Mic className="size-3 text-[#788fdb]" />
-                  <span>You</span>
+                  <span>{messages.transcript.you}</span>
                 </>
               ) : (
                 <>
                   <Headphones className="size-3 text-[#0461a4]" />
-                  <span>Partner</span>
+                  <span>{messages.transcript.partner}</span>
                 </>
               )}
             </span>
@@ -76,7 +79,7 @@ export function Transcript({
           <div className="mb-1.5 flex items-center gap-1.5">
             <span className="size-1.5 animate-pulse rounded-full bg-[#06bee1]" />
             <span className="text-[11px] font-semibold tracking-wider text-[#06bee1] uppercase">
-              Listening...
+              {messages.transcript.listening}
             </span>
           </div>
           <p className="text-sm leading-relaxed text-white/90 sm:text-base">
