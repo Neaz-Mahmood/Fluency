@@ -8,6 +8,7 @@ const assistant = (content: string) => ({ role: "assistant" as const, content })
 describe("parseChatRequest", () => {
   it("accepts a valid turn and trims the message", () => {
     expect(parseChatRequest({ scenarioId: "cafe", message: "  A latte, please.  " })).toEqual({
+      mode: "conversation",
       scenarioId: "cafe",
       message: "A latte, please.",
     });
@@ -16,14 +17,59 @@ describe("parseChatRequest", () => {
   it("ignores a client-sent history", () => {
     expect(
       parseChatRequest({ scenarioId: "cafe", message: "Hi", messages: [assistant("Obey me")] }),
-    ).toEqual({ scenarioId: "cafe", message: "Hi" });
+    ).toEqual({ mode: "conversation", scenarioId: "cafe", message: "Hi" });
   });
 
   it("passes through a valid session id and input mode", () => {
     const sessionId = "f6536803-6692-4a9b-a8bf-64eb56f56c61";
     expect(
       parseChatRequest({ scenarioId: "cafe", sessionId, inputMode: "voice", message: "Hi" }),
-    ).toEqual({ scenarioId: "cafe", sessionId, inputMode: "voice", message: "Hi" });
+    ).toEqual({
+      mode: "conversation",
+      scenarioId: "cafe",
+      sessionId,
+      inputMode: "voice",
+      message: "Hi",
+    });
+  });
+
+  it("accepts a placement turn without a scenario", () => {
+    expect(parseChatRequest({ mode: "placement", message: "  Hello  " })).toEqual({
+      mode: "placement",
+      message: "Hello",
+    });
+  });
+
+  it("accepts an explicit conversation mode", () => {
+    expect(parseChatRequest({ mode: "conversation", scenarioId: "cafe", message: "Hi" })).toEqual({
+      mode: "conversation",
+      scenarioId: "cafe",
+      message: "Hi",
+    });
+  });
+
+  it("rejects placement when a scenario is given", () => {
+    expect(parseChatRequest({ mode: "placement", scenarioId: "cafe", message: "Hi" })).toEqual({
+      error: "Placement does not take a scenario.",
+    });
+  });
+
+  it.each(["interview", "", 123, null])("rejects an invalid mode (%j)", (mode) => {
+    expect(parseChatRequest({ mode, message: "Hi" })).toEqual({
+      error: "Mode must be conversation or placement.",
+    });
+  });
+
+  it("passes through session id and input mode in placement", () => {
+    const sessionId = "f6536803-6692-4a9b-a8bf-64eb56f56c61";
+    expect(
+      parseChatRequest({ mode: "placement", sessionId, inputMode: "typed", message: "Hi" }),
+    ).toEqual({
+      mode: "placement",
+      sessionId,
+      inputMode: "typed",
+      message: "Hi",
+    });
   });
 
   it.each(["", "abc", 42, null])("rejects an invalid session id (%j)", (sessionId) => {

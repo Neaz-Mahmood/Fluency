@@ -23,7 +23,7 @@ export type SavedConversation = {
 
 export type Status = "idle" | "listening" | "thinking" | "speaking";
 
-export type ChatTarget = { scenarioId: ScenarioId };
+export type ChatTarget = { scenarioId: ScenarioId } | { mode: "placement" };
 
 const HOLD_THRESHOLD_MS = 280;
 
@@ -31,10 +31,12 @@ export function useConversation({
   target,
   saved,
   messages,
+  maxAnswers,
 }: {
   target: ChatTarget | null;
   saved: SavedConversation | null;
   messages: Messages;
+  maxAnswers?: number;
 }) {
   const [turns, setTurns] = useState<Turn[]>(saved?.turns ?? []);
   const [status, setStatus] = useState<Status>("idle");
@@ -148,6 +150,12 @@ export function useConversation({
   async function sendUserText(text: string, inputMode: "voice" | "typed") {
     const content = text.trim();
     if (!content || !target || statusRef.current === "thinking") return;
+    if (
+      maxAnswers !== undefined &&
+      turnsRef.current.filter((turn) => turn.role === "user").length >= maxAnswers
+    ) {
+      return;
+    }
 
     const sentAt = performance.now();
 
@@ -258,6 +266,17 @@ export function useConversation({
     }
   }
 
+  function canRestartHandsFree() {
+    if (!handsFreeRef.current) return false;
+    if (
+      maxAnswers !== undefined &&
+      turnsRef.current.filter((turn) => turn.role === "user").length >= maxAnswers
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   function speakReply(
     text: string,
     token: number,
@@ -265,7 +284,7 @@ export function useConversation({
   ) {
     if (!isSpeechSynthesisSupported()) {
       setStatus("idle");
-      if (handsFreeRef.current) beginListening(false);
+      if (canRestartHandsFree()) beginListening(false);
       return;
     }
 
@@ -287,7 +306,7 @@ export function useConversation({
         cancelSpeechRef.current = null;
         if (!isCurrent(token)) return;
         setStatus("idle");
-        if (handsFreeRef.current) beginListening(false);
+        if (canRestartHandsFree()) beginListening(false);
       },
     });
   }
@@ -358,5 +377,6 @@ export function useConversation({
     onMicPointerDown,
     onMicPointerUp,
     onSubmit,
+    getSessionId: () => chatSessionIdRef.current,
   };
 }

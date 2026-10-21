@@ -11,12 +11,13 @@ A Next.js Route Handler that accepts the learner's new message and streams the p
 ```
 app/api/chat/route.ts   # POST handler
 lib/chat-request.ts     # parseChatRequest (validation)
+lib/placement.ts        # PLACEMENT_MAX_ANSWERS constant
 lib/provider.ts         # resolveProvider (env-var logic)
 lib/provider-errors.ts  # ProviderError, toProviderError, providerErrorResponse
 lib/reply-stream.ts     # startReply (first-token wait and idle timeout)
 lib/learner.ts          # getLearner (anonymous learner from the cookie)
 lib/sessions.ts         # findOpenSession, startSession, loadTurns, saveExchange
-lib/prompts.ts          # getSystemPrompt (per-scenario behavior)
+lib/prompts.ts          # getSystemPrompt (per-scenario behavior), getPlacementPrompt
 ```
 
 ## Request shape
@@ -25,18 +26,29 @@ lib/prompts.ts          # getSystemPrompt (per-scenario behavior)
 POST /api/chat
 Content-Type: application/json
 
+// Conversation mode:
 {
+  "mode": "conversation",         // optional, defaults to "conversation"
   "scenarioId": "free-chat" | "job-interview" | "cafe" | "neighbor",
-  "sessionId": "uuid",          // optional: from the previous reply's X-Session-Id
+  "sessionId": "uuid",            // optional: from the previous reply's X-Session-Id
   "inputMode": "voice" | "typed", // optional: how the message was produced
-  "message": "string"           // the learner's new turn
+  "message": "string"             // the learner's new turn
+}
+
+// Placement mode:
+{
+  "mode": "placement",
+  "sessionId": "uuid",            // optional: from the previous reply's X-Session-Id
+  "inputMode": "voice" | "typed", // optional: how the message was produced
+  "message": "string"             // the learner's new turn
 }
 ```
 
 ## Response
 
-Before streaming starts, a provider failure returns a JSON error response:
+Before streaming starts, a provider failure or placement refusal returns a JSON error response:
 
+- `409` conflict: "Placement is finished." (placement allows at most 6 learner answers; a 7th gets 409)
 - `503` busy: "The AI partner is busy right now. Try again in a moment."
 - `504` timeout: "The AI partner took too long to answer. Try again."
 - `502` failed: "The AI partner could not reply. Try again."
@@ -55,7 +67,9 @@ The body is the raw text of the partner's reply, streamed token-by-token. If the
 `parseChatRequest(body)` enforces:
 
 - Body is a JSON object.
-- `scenarioId` is one of the four supported ids (`isScenarioId`).
+- `mode` is either `"conversation"` (or omitted) or `"placement"`. Any other value returns `400` "Mode must be conversation or placement."
+- For conversation mode, `scenarioId` is one of the four supported ids (`isScenarioId`).
+- For placement mode, `scenarioId` must be absent; if present, returns `400` "Placement does not take a scenario."
 - `message` is a non-empty string of at most `MAX_CHARS = 2000` characters after trimming.
 - Any other field (such as an old-style `messages` array) is ignored.
 
@@ -69,7 +83,7 @@ The handler calls `resolveProvider()` (see [ai-providers.md](./ai-providers.md))
 
 ## Learner and session
 
-Before streaming, the handler loads the current learner with `getLearner()` (`lib/learner.ts`), which reads the `fluency_learner` cookie set by `proxy.ts`. If the request has a `sessionId`, `findOpenSession()` (`lib/sessions.ts`) returns it only if it belongs to this learner, is for the same scenario and hasn't ended, and `loadTurns()` reads its history. Otherwise the turn starts a new conversation, so a client can't read or write another learner's session. A new session is created with `startSession()` only after the first token arrives, so a failed first turn creates no session. If the database is unreachable, the handler returns `503`.
+Before streaming, the handler loads the current learner with `getLearner()` (`lib/learner.ts`), which reads the `fluency_learner` cookie set by `proxy.ts`. If the request has a `sessionId`, `findOpenSession()` (`lib/sessions.ts`) returns it only if it belongs to this learner, matches the scenario and mode, and hasn't ended, and `loadTurns()` reads its history. Otherwise the turn starts a new conversation, so a client can't read or write another learner's session. A new session is created with `startSession()` only after the first token arrives, so a failed first turn creates no session. If the database is unreachable, the handler returns `503`.
 
 ## Saving turns
 

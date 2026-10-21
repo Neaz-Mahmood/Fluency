@@ -5,7 +5,8 @@ import { buildHistory, parseChatRequest, type ChatTurn } from "@/lib/chat-reques
 import { getDb } from "@/lib/db";
 import type { LearnerProfile, Session } from "@/lib/db/schema";
 import { getLearner } from "@/lib/learner";
-import { getSystemPrompt } from "@/lib/prompts";
+import { PLACEMENT_MAX_ANSWERS } from "@/lib/placement";
+import { getPlacementPrompt, getSystemPrompt } from "@/lib/prompts";
 import { resolveProvider } from "@/lib/provider";
 import { providerErrorResponse, toProviderError } from "@/lib/provider-errors";
 import { startReply, type StartedReply } from "@/lib/reply-stream";
@@ -36,11 +37,21 @@ export async function POST(request: Request) {
   try {
     learner = await getLearner();
     if (parsed.sessionId) {
-      existing = await findOpenSession(getDb(), {
-        learnerId: learner.learnerId,
-        sessionId: parsed.sessionId,
-        scenarioId: parsed.scenarioId,
-      });
+      existing = await findOpenSession(
+        getDb(),
+        parsed.mode === "conversation"
+          ? {
+              learnerId: learner.learnerId,
+              sessionId: parsed.sessionId,
+              scenarioId: parsed.scenarioId,
+              mode: "conversation",
+            }
+          : {
+              learnerId: learner.learnerId,
+              sessionId: parsed.sessionId,
+              mode: "placement",
+            },
+      );
     }
     if (existing) savedTurns = await loadTurns(getDb(), existing.sessionId);
   } catch (error) {
@@ -51,12 +62,22 @@ export async function POST(request: Request) {
     );
   }
 
+  const answers = savedTurns.filter((turn) => turn.role === "user").length + 1;
+  if (parsed.mode === "placement" && answers > PLACEMENT_MAX_ANSWERS) {
+    return Response.json({ error: "Placement is finished." }, { status: 409 });
+  }
+
   const messages = buildHistory(savedTurns, parsed.message);
   if ("error" in messages) {
     return Response.json({ error: messages.error }, { status: 400 });
   }
 
-  const reply = streamReply(selected, { system: getSystemPrompt(parsed.scenarioId), messages });
+  const system =
+    parsed.mode === "placement"
+      ? getPlacementPrompt(answers)
+      : getSystemPrompt(parsed.scenarioId);
+
+  const reply = streamReply(selected, { system, messages });
 
   let started: StartedReply;
   try {
@@ -77,7 +98,8 @@ export async function POST(request: Request) {
       existing ??
       (await startSession(getDb(), {
         learnerId: learner.learnerId,
-        scenarioId: parsed.scenarioId,
+        mode: parsed.mode,
+        scenarioId: parsed.mode === "conversation" ? parsed.scenarioId : null,
       }));
   } catch (error) {
     reply.abort();

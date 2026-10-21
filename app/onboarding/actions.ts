@@ -17,13 +17,17 @@ export async function saveLanguages(
     return { status: "error" };
   }
 
+  let target = "/practice";
   try {
     const learner = await getLearner();
     await setNativeLanguage(getDb(), learner.learnerId, nativeLanguage);
+    if (learner.cefrSpeaking === null) {
+      target = "/placement";
+    }
   } catch (error) {
     console.error("Could not save native language.", error);
     return { status: "error" };
   }
 
-  redirect("/practice");
+  redirect(target);
 }

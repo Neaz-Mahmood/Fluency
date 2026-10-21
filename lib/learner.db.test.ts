@@ -39,6 +39,7 @@ const {
   getLearner,
   LearnerUnavailableError,
   setNativeLanguage,
+  setPlacementLevels,
 } = await import("@/lib/learner");
 
 const db = createTestDb();
@@ -124,6 +125,25 @@ describe("setNativeLanguage", () => {
 
     expect(profile?.nativeLanguage).toBe("bn-BD");
     expect(profile?.targetLanguage).toBe("en-US");
+  });
+});
+
+describe("setPlacementLevels", () => {
+  it("sets speaking and writing and copies speaking to listening and reading", async () => {
+    const id = newLearnerId();
+    await ensureLearnerProfile(db, id);
+
+    await setPlacementLevels(db, id, { speaking: "B1", writing: "A2" });
+
+    const [profile] = await db
+      .select()
+      .from(learnerProfiles)
+      .where(eq(learnerProfiles.learnerId, id));
+
+    expect(profile?.cefrSpeaking).toBe("B1");
+    expect(profile?.cefrWriting).toBe("A2");
+    expect(profile?.cefrListening).toBe("B1");
+    expect(profile?.cefrReading).toBe("B1");
   });
 });
 

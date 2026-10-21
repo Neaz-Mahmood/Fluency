@@ -8,6 +8,7 @@ Fluency is a voice-first practice partner for spoken English. You pick a scenari
 - **Phase 1** — a scenario picker, browser-based speech recognition, spoken replies via the Web Speech API, and a typed fallback for browsers without a microphone.
 - **Session history** — past conversations listed at `/history` and opened as read-only transcripts at `/history/[sessionId]`.
 - **Language settings and onboarding** — Bangla-first onboarding at `/onboarding` to choose native language (`bn-BD`), and a language section in `/settings` to view or change it.
+- **Placement chat** — a 6-question diagnostic conversation at `/placement` that estimates initial speaking and writing CEFR levels using the feedback model.
 - **Bangla UI strings** — message dictionary providing Bangla UI strings for the home page, scenario picker, practice controls, transcripts, and client error messages when the learner's native language is `bn-BD`.
 
 ## Feature pages

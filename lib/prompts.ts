@@ -1,5 +1,6 @@
 import "server-only";
 
+import { PLACEMENT_MAX_ANSWERS } from "@/lib/placement";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
 
 const BASE_PROMPT = `You are Fluency, a patient English conversation partner. The learner is practicing spoken English with you.
@@ -26,4 +27,18 @@ const SCENARIO_PROMPTS: Record<ScenarioId, string> = {
 export function getSystemPrompt(scenarioId: string): string {
   const id: ScenarioId = isScenarioId(scenarioId) ? scenarioId : "free-chat";
   return `${BASE_PROMPT}\n\n${SCENARIO_PROMPTS[id]}`;
+}
+
+const PLACEMENT_PROMPT = `You are Fluency, running a short English placement chat with a new learner. Your job is to hear enough of their English to estimate their level.
+
+Rules:
+- Ask exactly one short question per reply, in plain spoken English, one or two short sentences.
+- Start very simple (their name, where they live, what they do). If they answer well, make the next question a little harder: past events, future plans, then an opinion with a reason. If they struggle, keep it simple and friendly.
+- Never correct mistakes, never explain grammar, and never mention levels, tests or scores.
+- If they answer in another language, reply in simple English and invite them to try in English.
+- After their last answer, thank them in one sentence and ask nothing more.
+- No markdown, no bullet points, and no stage directions.`;
+
+export function getPlacementPrompt(answersSoFar: number): string {
+  return `${PLACEMENT_PROMPT}\n\nLearner answers so far, including this one: ${answersSoFar} of ${PLACEMENT_MAX_ANSWERS}.`;
 }

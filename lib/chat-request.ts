@@ -8,15 +8,18 @@ export type ChatTurn = {
 
 export type InputMode = "voice" | "typed";
 
-// One new learner turn. The history comes from the saved session, never from the client.
-export type ChatRequest = {
-  scenarioId: ScenarioId;
+type ChatRequestBase = {
   message: string;
   // The session from a previous reply's X-Session-Id header. Absent on the first turn.
   sessionId?: string;
   // How the learner produced the message.
   inputMode?: InputMode;
 };
+
+// One new learner turn. The history comes from the saved session, never from the client.
+export type ChatRequest =
+  | (ChatRequestBase & { mode: "conversation"; scenarioId: ScenarioId })
+  | (ChatRequestBase & { mode: "placement" });
 
 const MAX_TURNS = 40;
 const MAX_CHARS = 2000;
@@ -27,7 +30,13 @@ export function parseChatRequest(body: unknown): ChatRequest | { error: string }
   }
 
   const record = body as Record<string, unknown>;
-  if (typeof record.scenarioId !== "string" || !isScenarioId(record.scenarioId)) {
+  if (record.mode === "placement") {
+    if (record.scenarioId !== undefined) {
+      return { error: "Placement does not take a scenario." };
+    }
+  } else if (record.mode !== undefined && record.mode !== "conversation") {
+    return { error: "Mode must be conversation or placement." };
+  } else if (typeof record.scenarioId !== "string" || !isScenarioId(record.scenarioId)) {
     return { error: "Choose a scenario before sending a message." };
   }
 
@@ -50,8 +59,18 @@ export function parseChatRequest(body: unknown): ChatRequest | { error: string }
     return { error: "A message is too long." };
   }
 
+  if (record.mode === "placement") {
+    return {
+      mode: "placement",
+      message,
+      ...(sessionId !== undefined ? { sessionId } : {}),
+      ...(inputMode !== undefined ? { inputMode: inputMode as InputMode } : {}),
+    };
+  }
+
   return {
-    scenarioId: record.scenarioId,
+    mode: "conversation",
+    scenarioId: record.scenarioId as ScenarioId,
     message,
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(inputMode !== undefined ? { inputMode: inputMode as InputMode } : {}),

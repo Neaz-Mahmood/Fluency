@@ -5,6 +5,7 @@ import { sessions, sessionTurns } from "@/lib/db/schema";
 import { ensureLearnerProfile } from "@/lib/learner";
 import { newLearnerId } from "@/lib/learner-id";
 import {
+  endSession,
   findOpenSession,
   findSession,
   listSessions,
@@ -45,7 +46,11 @@ async function turnsOf(sessionId: string) {
 describe("startSession", () => {
   it("starts a conversation session for the learner", async () => {
     const learnerId = await newLearner();
-    const session = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const session = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     expect(session).toMatchObject({ learnerId, scenarioId: "cafe", mode: "conversation" });
   });
 });
@@ -53,7 +58,11 @@ describe("startSession", () => {
 describe("findOpenSession", () => {
   it("finds the learner's own session, with or without the scenario", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
 
     expect(await findOpenSession(db, { learnerId, sessionId, scenarioId: "cafe" })).toMatchObject({
       sessionId,
@@ -64,23 +73,52 @@ describe("findOpenSession", () => {
   it("never finds another learner's session", async () => {
     const owner = await newLearner();
     const intruder = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
 
     expect(await findOpenSession(db, { learnerId: intruder, sessionId })).toBeNull();
   });
 
   it("ignores a session for another scenario", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
 
     expect(
       await findOpenSession(db, { learnerId, sessionId, scenarioId: "job-interview" }),
     ).toBeNull();
   });
 
+  it("finds a placement session with mode placement and not with a scenario", async () => {
+    const learnerId = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "placement",
+      scenarioId: null,
+    });
+
+    expect(await findOpenSession(db, { learnerId, sessionId, mode: "placement" })).toMatchObject({
+      sessionId,
+      mode: "placement",
+    });
+    expect(
+      await findOpenSession(db, { learnerId, sessionId, scenarioId: "cafe" }),
+    ).toBeNull();
+  });
+
   it("ignores a session that has ended", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     await db.update(sessions).set({ endedAt: new Date() }).where(eq(sessions.sessionId, sessionId));
 
     expect(await findOpenSession(db, { learnerId, sessionId })).toBeNull();
@@ -95,7 +133,11 @@ describe("findOpenSession", () => {
 describe("loadTurns", () => {
   it("returns the saved turns in order", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     await saveExchange(db, {
       sessionId,
       userText: "Hi",
@@ -114,19 +156,66 @@ describe("loadTurns", () => {
     });
 
     const turns = await loadTurns(db, sessionId);
-    expect(turns.map(({ role, content }) => ({ role, content }))).toEqual([
-      { role: "user", content: "Hi" },
-      { role: "assistant", content: "Hello!" },
-      { role: "user", content: "A latte." },
+    expect(turns.map(({ role, content, inputMode }) => ({ role, content, inputMode }))).toEqual([
+      { role: "user", content: "Hi", inputMode: "voice" },
+      { role: "assistant", content: "Hello!", inputMode: null },
+      { role: "user", content: "A latte.", inputMode: "typed" },
     ]);
     expect(new Set(turns.map((turn) => turn.id)).size).toBe(3);
+  });
+});
+
+describe("endSession", () => {
+  it("ends the owner's open session", async () => {
+    const owner = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "placement",
+      scenarioId: null,
+    });
+
+    const ended = await endSession(db, { learnerId: owner, sessionId });
+    expect(ended).toMatchObject({ sessionId, learnerId: owner });
+    expect(ended?.endedAt).toBeInstanceOf(Date);
+
+    const found = await findSession(db, { learnerId: owner, sessionId });
+    expect(found?.endedAt).toEqual(ended?.endedAt);
+  });
+
+  it("returns null for another learner", async () => {
+    const owner = await newLearner();
+    const intruder = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "placement",
+      scenarioId: null,
+    });
+
+    expect(await endSession(db, { learnerId: intruder, sessionId })).toBeNull();
+  });
+
+  it("returns null for an already-ended session", async () => {
+    const owner = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "placement",
+      scenarioId: null,
+    });
+
+    const first = await endSession(db, { learnerId: owner, sessionId });
+    expect(first).not.toBeNull();
+    expect(await endSession(db, { learnerId: owner, sessionId })).toBeNull();
   });
 });
 
 describe("saveExchange", () => {
   it("appends the learner's turn and the reply in order", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
 
     await saveExchange(db, {
       sessionId,
@@ -155,7 +244,11 @@ describe("saveExchange", () => {
 
   it("stores the reply turn id and first token latency on the assistant turn", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     const replyTurnId = crypto.randomUUID();
 
     await saveExchange(db, {
@@ -187,7 +280,11 @@ describe("saveExchange", () => {
 
   it("saves only the learner's turn when the reply is empty", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
 
     await saveExchange(db, {
       sessionId,
@@ -205,7 +302,11 @@ describe("saveExchange", () => {
 
   it("gives concurrent saves distinct positions", async () => {
     const learnerId = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
 
     await Promise.all(
       Array.from({ length: 5 }, (_, index) =>
@@ -229,7 +330,11 @@ describe("findSession", () => {
   it("returns an ended session for its owner and null for another learner", async () => {
     const owner = await newLearner();
     const other = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     await db.update(sessions).set({ endedAt: new Date() }).where(eq(sessions.sessionId, sessionId));
 
     const found = await findSession(db, { learnerId: owner, sessionId });
@@ -245,19 +350,31 @@ describe("listSessions", () => {
     const owner = await newLearner();
     const other = await newLearner();
 
-    const older = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const older = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     await db
       .update(sessions)
       .set({ startedAt: new Date("2026-01-01T10:00:00Z") })
       .where(eq(sessions.sessionId, older.sessionId));
 
-    const newer = await startSession(db, { learnerId: owner, scenarioId: "job-interview" });
+    const newer = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "job-interview",
+    });
     await db
       .update(sessions)
       .set({ startedAt: new Date("2026-01-02T10:00:00Z") })
       .where(eq(sessions.sessionId, newer.sessionId));
 
-    const otherSession = await startSession(db, { learnerId: other, scenarioId: "cafe" });
+    const otherSession = await startSession(db, {
+      learnerId: other,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     await saveExchange(db, {
       sessionId: otherSession.sessionId,
       userText: "Other learner",
@@ -313,7 +430,11 @@ describe("listSessions", () => {
 describe("recordFirstAudio", () => {
   it("sets firstAudioMs for the owner of the session", async () => {
     const owner = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     const replyTurnId = crypto.randomUUID();
 
     await saveExchange(db, {
@@ -342,7 +463,11 @@ describe("recordFirstAudio", () => {
   it("returns false and changes nothing for another learner", async () => {
     const owner = await newLearner();
     const other = await newLearner();
-    const { sessionId } = await startSession(db, { learnerId: owner, scenarioId: "cafe" });
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
     const replyTurnId = crypto.randomUUID();
 
     await saveExchange(db, {

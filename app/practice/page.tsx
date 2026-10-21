@@ -53,7 +53,11 @@ async function loadSavedConversation(
 ): Promise<SavedConversation | null> {
   if (!isUuid(sessionId)) return null;
   try {
-    const session = await findOpenSession(getDb(), { learnerId: learner.learnerId, sessionId });
+    const session = await findOpenSession(getDb(), {
+      learnerId: learner.learnerId,
+      sessionId,
+      mode: "conversation",
+    });
     if (!session?.scenarioId || !isScenarioId(session.scenarioId)) return null;
     return {
       sessionId: session.sessionId,

@@ -7,10 +7,15 @@ import { sessions, sessionTurns, type Session } from "@/lib/db/schema";
 import type { ScenarioId } from "@/lib/scenarios";
 
 // The client's session, only if it belongs to this learner, hasn't ended and (when given)
-// is for the same scenario. So a client can never read or write someone else's session.
+// matches the scenario and mode. So a client can never read or write someone else's session.
 export async function findOpenSession(
   db: Db,
-  options: { learnerId: string; sessionId: string; scenarioId?: ScenarioId },
+  options: {
+    learnerId: string;
+    sessionId: string;
+    scenarioId?: ScenarioId;
+    mode?: "conversation" | "placement";
+  },
 ): Promise<Session | null> {
   const [existing] = await db
     .select()
@@ -20,6 +25,7 @@ export async function findOpenSession(
         eq(sessions.sessionId, options.sessionId),
         eq(sessions.learnerId, options.learnerId),
         options.scenarioId ? eq(sessions.scenarioId, options.scenarioId) : undefined,
+        options.mode ? eq(sessions.mode, options.mode) : undefined,
         isNull(sessions.endedAt),
       ),
     );
@@ -66,16 +72,44 @@ export async function listSessions(db: Db, learnerId: string) {
 
 export async function startSession(
   db: Db,
-  options: { learnerId: string; scenarioId: ScenarioId },
+  options: {
+    learnerId: string;
+    mode: "conversation" | "placement";
+    scenarioId: ScenarioId | null;
+  },
 ): Promise<Session> {
   const [created] = await db.insert(sessions).values(options).returning();
   return created!;
 }
 
+// Ends the learner's open session, returning null if already ended or not found.
+export async function endSession(
+  db: Db,
+  options: { learnerId: string; sessionId: string },
+): Promise<Session | null> {
+  const [updated] = await db
+    .update(sessions)
+    .set({ endedAt: new Date() })
+    .where(
+      and(
+        eq(sessions.sessionId, options.sessionId),
+        eq(sessions.learnerId, options.learnerId),
+        isNull(sessions.endedAt),
+      ),
+    )
+    .returning();
+  return updated ?? null;
+}
+
 // The session's turns in order. Callers must check ownership with findOpenSession first.
 export async function loadTurns(db: Db, sessionId: string) {
   return db
-    .select({ id: sessionTurns.turnId, role: sessionTurns.role, content: sessionTurns.content })
+    .select({
+      id: sessionTurns.turnId,
+      role: sessionTurns.role,
+      content: sessionTurns.content,
+      inputMode: sessionTurns.inputMode,
+    })
     .from(sessionTurns)
     .where(eq(sessionTurns.sessionId, sessionId))
     .orderBy(asc(sessionTurns.position));

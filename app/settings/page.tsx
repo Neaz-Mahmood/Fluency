@@ -20,7 +20,7 @@ export default function SettingsPage() {
       </div>
 
       <Suspense fallback={null}>
-        <LanguageSetting />
+        <LearnerSettings />
       </Suspense>
 
       <section className="flex flex-col gap-4 rounded-lg border border-[#d8e2ed] bg-white p-5 shadow-[0_2px_8px_-2px_rgba(3,37,108,0.05)]">
@@ -37,32 +37,53 @@ export default function SettingsPage() {
   );
 }
 
-async function LanguageSetting() {
-  let label = "Not set";
+async function LearnerSettings() {
+  let languageLabel = "Not set";
+  let levelLabel = "Not set";
   try {
     const learner = await getLearner();
     const match = NATIVE_LANGUAGES.find((lang) => lang.code === learner.nativeLanguage);
     if (match) {
-      label = match.label;
+      languageLabel = match.label;
+    }
+    if (learner.cefrSpeaking && learner.cefrWriting) {
+      levelLabel = `Speaking: ${learner.cefrSpeaking} · Writing: ${learner.cefrWriting}`;
     }
   } catch (error) {
     unstable_rethrow(error);
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-lg border border-[#d8e2ed] bg-white p-5 shadow-[0_2px_8px_-2px_rgba(3,37,108,0.05)]">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h2 className="font-heading text-lg font-semibold text-[#03256c]">Language</h2>
-          <p className="text-sm text-[#556b82]">{label}</p>
+    <>
+      <section className="flex flex-col gap-4 rounded-lg border border-[#d8e2ed] bg-white p-5 shadow-[0_2px_8px_-2px_rgba(3,37,108,0.05)]">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <h2 className="font-heading text-lg font-semibold text-[#03256c]">Language</h2>
+            <p className="text-sm text-[#556b82]">{languageLabel}</p>
+          </div>
+          <Link
+            href="/onboarding"
+            className="text-sm font-medium text-[#1768ac] hover:text-[#03256c] hover:underline"
+          >
+            Change
+          </Link>
         </div>
-        <Link
-          href="/onboarding"
-          className="text-sm font-medium text-[#1768ac] hover:text-[#03256c] hover:underline"
-        >
-          Change
-        </Link>
-      </div>
-    </section>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-lg border border-[#d8e2ed] bg-white p-5 shadow-[0_2px_8px_-2px_rgba(3,37,108,0.05)]">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <h2 className="font-heading text-lg font-semibold text-[#03256c]">Level</h2>
+            <p className="text-sm text-[#556b82]">{levelLabel}</p>
+          </div>
+          <Link
+            href="/placement"
+            className="text-sm font-medium text-[#1768ac] hover:text-[#03256c] hover:underline"
+          >
+            Take the placement chat
+          </Link>
+        </div>
+      </section>
+    </>
   );
 }

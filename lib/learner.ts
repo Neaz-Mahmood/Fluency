@@ -7,6 +7,7 @@ import { getDb, type Db } from "@/lib/db";
 import { learnerProfiles, type LearnerProfile } from "@/lib/db/schema";
 import { TARGET_LANGUAGE, type NativeLanguage } from "@/lib/languages";
 import { LEARNER_COOKIE, isLearnerId } from "@/lib/learner-id";
+import type { CefrLevel } from "@/lib/placement";
 
 export class LearnerUnavailableError extends Error {}
 
@@ -67,6 +68,23 @@ export async function setNativeLanguage(
     .set({
       nativeLanguage,
       targetLanguage: TARGET_LANGUAGE,
+    })
+    .where(eq(learnerProfiles.learnerId, learnerId));
+}
+
+// Sets provisional CEFR levels; listening and reading start at the speaking level.
+export async function setPlacementLevels(
+  db: Db,
+  learnerId: string,
+  levels: { speaking: CefrLevel; writing: CefrLevel },
+): Promise<void> {
+  await db
+    .update(learnerProfiles)
+    .set({
+      cefrSpeaking: levels.speaking,
+      cefrWriting: levels.writing,
+      cefrListening: levels.speaking,
+      cefrReading: levels.speaking,
     })
     .where(eq(learnerProfiles.learnerId, learnerId));
 }

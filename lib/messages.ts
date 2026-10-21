@@ -103,6 +103,21 @@ const en = {
     failed: "Speech recognition failed.",
     "already-running": "Speech recognition is already running.",
   },
+  placement: {
+    title: "Find your level",
+    intro:
+      "Say hello in English to start. Your partner will ask up to 6 short questions. There are no grades, so just answer as well as you can.",
+    progress: "Answers",
+    finish: "See my level",
+    finishing: "Calculating…",
+    resultTitle: "Your starting level",
+    speaking: "Speaking",
+    writing: "Writing",
+    resultNote: "This is a first estimate. It updates as you practice.",
+    startPracticing: "Start practicing",
+    error: "Your level could not be calculated. Try again.",
+    retry: "Try again",
+  },
 };
 
 export type Messages = typeof en;
@@ -211,6 +226,21 @@ const bn: Messages = {
     "audio-capture": "কোনো মাইক্রোফোন পাওয়া যায়নি।",
     failed: "স্পিচ রেকগনিশন ব্যর্থ হয়েছে।",
     "already-running": "স্পিচ রেকগনিশন ইতিমধ্যে চালু আছে।",
+  },
+  placement: {
+    title: "আপনার লেভেল জেনে নিন",
+    intro:
+      "শুরু করতে ইংরেজিতে হ্যালো বলুন। আপনার পার্টনার আপনাকে সর্বোচ্চ ৬টি ছোট প্রশ্ন করবেন। এখানে কোনো গ্রেড নেই, তাই যথাসম্ভব ভালোভাবে উত্তর দিন।",
+    progress: "উত্তর",
+    finish: "আমার লেভেল দেখুন",
+    finishing: "হিসাব করা হচ্ছে…",
+    resultTitle: "আপনার শুরুর লেভেল",
+    speaking: "বলা",
+    writing: "লেখা",
+    resultNote: "এটি একটি প্রাথমিক অনুমান। অনুশীলনের সাথে সাথে এটি আপডেট হবে।",
+    startPracticing: "অনুশীলন শুরু করুন",
+    error: "আপনার লেভেল হিসাব করা যায়নি। আবার চেষ্টা করুন।",
+    retry: "আবার চেষ্টা করুন",
   },
 };
 

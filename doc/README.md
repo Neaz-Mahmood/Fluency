@@ -6,6 +6,7 @@ This directory documents the features that are built into Fluency, the spoken-En
 
 - [Features overview](./features.md) — what the app does, in one page.
 - [Scenarios](./scenarios.md) — the four practice scenarios.
+- [Placement](./placement.md) — provisional CEFR level assessment and scoring.
 - [Voice input](./voice-input.md) — hold-to-talk mic and Web Speech recognition.
 - [Typed input](./typed-input.md) — text fallback when the mic is unavailable.
 - [Conversation](./conversation.md) — turn lifecycle, status state machine, transcript.
