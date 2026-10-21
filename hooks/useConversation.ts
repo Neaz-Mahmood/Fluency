@@ -4,7 +4,7 @@ import { FormEvent, PointerEvent, useEffect, useRef, useState, useSyncExternalSt
 
 import type { Messages } from "@/lib/messages";
 import type { ScenarioId } from "@/lib/scenarios";
-import { recordFirstAudio } from "@/app/practice/actions";
+import { endConversation, recordFirstAudio } from "@/app/practice/actions";
 import { isSpeechRecognitionSupported, startListening, type ListeningSession } from "@/lib/stt";
 import { isSpeechSynthesisSupported, speakText, stopSpeaking } from "@/lib/tts";
 
@@ -327,6 +327,8 @@ export function useConversation({
     interrupt();
     setTurns([]);
     turnsRef.current = [];
+    const sessionId = chatSessionIdRef.current;
+    if (sessionId) void endConversation(sessionId);
     chatSessionIdRef.current = null;
     window.history.replaceState(null, "", window.location.pathname);
   }

@@ -100,7 +100,7 @@ Done when: a reload shows the same conversation, every turn has latency numbers,
 - [x] **Language settings.** Done (FLU-28): onboarding sets the native language on the learner profile and sends learners without one there before they practice.
 - [x] **Bangla UI strings.** Done (FLU-29): the home page, scenario picker, practice controls, transcript and speech/error messages come from an English or Bangla dictionary in `lib/messages.ts`, picked by the learner's native language.
 - [x] **Placement chat.** Done (FLU-30). A 6-question diagnostic chat at `/placement` estimates provisional speaking and writing CEFR levels using the feedback model.
-- [ ] **Learner summary.** After a session ends, use `after()` to build `compact_tutor_summary` (under 250 tokens) from the profile and transcript. Change `getSystemPrompt(scenarioId)` to `getSystemPrompt(scenarioId, learner)` so it includes CEFR level, native language and summary.
+- [x] **Learner summary.** Done (FLU-31). Triggered by "Switch scenario", which ends the session and asks the feedback model for a note capped at 700 chars in `after()`. A closed tab leaves the session open and builds no summary.
 - [x] **Level-aware prompt rules.** Done (FLU-32): added level-specific scaffolding rules for A1–C2, native-language support for A1–B1, and learner summaries to `lib/prompts.ts`.
 
 Done when: a new learner completes placement, finishes one session, and their next session's system prompt includes their level and a summary under 250 tokens (checked on 20 test profiles).

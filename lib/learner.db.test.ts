@@ -40,6 +40,7 @@ const {
   LearnerUnavailableError,
   setNativeLanguage,
   setPlacementLevels,
+  setTutorSummary,
 } = await import("@/lib/learner");
 
 const db = createTestDb();
@@ -144,6 +145,22 @@ describe("setPlacementLevels", () => {
     expect(profile?.cefrWriting).toBe("A2");
     expect(profile?.cefrListening).toBe("B1");
     expect(profile?.cefrReading).toBe("B1");
+  });
+});
+
+describe("setTutorSummary", () => {
+  it("stores the text in compactTutorSummary", async () => {
+    const id = newLearnerId();
+    await ensureLearnerProfile(db, id);
+
+    await setTutorSummary(db, id, "Learner is B1, practices ordering coffee.");
+
+    const [profile] = await db
+      .select()
+      .from(learnerProfiles)
+      .where(eq(learnerProfiles.learnerId, id));
+
+    expect(profile?.compactTutorSummary).toBe("Learner is B1, practices ordering coffee.");
   });
 });
 

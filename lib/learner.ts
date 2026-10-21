@@ -88,3 +88,11 @@ export async function setPlacementLevels(
     })
     .where(eq(learnerProfiles.learnerId, learnerId));
 }
+
+// Stores the tutor's compact private note built after a conversation session.
+export async function setTutorSummary(db: Db, learnerId: string, summary: string): Promise<void> {
+  await db
+    .update(learnerProfiles)
+    .set({ compactTutorSummary: summary })
+    .where(eq(learnerProfiles.learnerId, learnerId));
+}
