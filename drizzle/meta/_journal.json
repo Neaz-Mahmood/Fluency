@@ -22,6 +22,13 @@
       "when": 1792653007345,
       "tag": "0002_session_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792667374538,
+      "tag": "0003_voice_consent",
+      "breakpoints": true
     }
   ]
 }

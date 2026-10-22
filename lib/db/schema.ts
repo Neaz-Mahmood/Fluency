@@ -99,6 +99,8 @@ export const learnerProfiles = pgTable(
       .default(DEFAULT_FSRS_PARAMETERS),
     // Under 250 tokens; rebuilt after each session and injected into the system prompt.
     compactTutorSummary: text("compact_tutor_summary").notNull().default(""),
+    // Set when the learner opts in to live voice; null means no consent. Recordings are never stored.
+    voiceConsentAt: timestamp("voice_consent_at", { withTimezone: true }),
     ...timestamps,
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()

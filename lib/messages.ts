@@ -177,6 +177,17 @@ const en = {
     error: "The review could not load.",
     retry: "Try again",
   },
+  voiceConsent: {
+    title: "Live voice",
+    body: "In live voice sessions, your voice is sent to speech services while you talk, to understand you and to score your pronunciation. Fluency does not keep recordings. Only the transcript and the scores are saved.",
+    given: "You agreed to live voice.",
+    notGiven:
+      "You have not agreed to live voice yet. Typed practice and browser speech still work.",
+    agree: "I agree",
+    withdraw: "Withdraw consent",
+    saving: "Saving…",
+    error: "Could not save. Try again.",
+  },
 };
 
 export type Messages = typeof en;
@@ -358,6 +369,17 @@ const bn: Messages = {
     toHistory: "হিস্টরিতে যান",
     error: "রিভিউ লোড করা যায়নি।",
     retry: "আবার চেষ্টা করুন",
+  },
+  voiceConsent: {
+    title: "লাইভ ভয়েস",
+    body: "লাইভ ভয়েস সেশনে কথা বলার সময় আপনার কণ্ঠ স্পিচ সার্ভিসে পাঠানো হয়, যাতে আপনার কথা বোঝা যায় এবং উচ্চারণ যাচাই করা যায়। ফ্লুয়েন্সি কোনো রেকর্ডিং রাখে না। শুধু লেখা রূপ আর স্কোর সংরক্ষণ করা হয়।",
+    given: "আপনি লাইভ ভয়েসে সম্মতি দিয়েছেন।",
+    notGiven:
+      "আপনি এখনো লাইভ ভয়েসে সম্মতি দেননি। টাইপ করে অনুশীলন আর ব্রাউজারের স্পিচ এখনো কাজ করবে।",
+    agree: "আমি সম্মত",
+    withdraw: "সম্মতি তুলে নিন",
+    saving: "সংরক্ষণ হচ্ছে…",
+    error: "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
   },
 };
 

@@ -4,8 +4,10 @@ import { unstable_rethrow } from "next/navigation";
 import { Suspense } from "react";
 
 import { DeleteMyData } from "@/components/DeleteMyData";
+import { VoiceConsent } from "@/components/VoiceConsent";
 import { NATIVE_LANGUAGES } from "@/lib/languages";
 import { getLearner } from "@/lib/learner";
+import { getMessages } from "@/lib/messages";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -40,18 +42,22 @@ export default function SettingsPage() {
 async function LearnerSettings() {
   let languageLabel = "Not set";
   let levelLabel = "Not set";
+  let learner: Awaited<ReturnType<typeof getLearner>> | null = null;
   try {
-    const learner = await getLearner();
-    const match = NATIVE_LANGUAGES.find((lang) => lang.code === learner.nativeLanguage);
+    const profile = await getLearner();
+    learner = profile;
+    const match = NATIVE_LANGUAGES.find((lang) => lang.code === profile.nativeLanguage);
     if (match) {
       languageLabel = match.label;
     }
-    if (learner.cefrSpeaking && learner.cefrWriting) {
-      levelLabel = `Speaking: ${learner.cefrSpeaking} · Writing: ${learner.cefrWriting}`;
+    if (profile.cefrSpeaking && profile.cefrWriting) {
+      levelLabel = `Speaking: ${profile.cefrSpeaking} · Writing: ${profile.cefrWriting}`;
     }
   } catch (error) {
     unstable_rethrow(error);
   }
+
+  const messages = learner ? getMessages(learner.nativeLanguage) : null;
 
   return (
     <>
@@ -84,6 +90,17 @@ async function LearnerSettings() {
           </Link>
         </div>
       </section>
+
+      {learner && messages ? (
+        <section className="flex flex-col gap-4 rounded-lg border border-[#d8e2ed] bg-white p-5 shadow-[0_2px_8px_-2px_rgba(3,37,108,0.05)]">
+          <div className="flex flex-col gap-1.5">
+            <h2 className="font-heading text-lg font-semibold text-[#03256c]">
+              {messages.voiceConsent.title}
+            </h2>
+          </div>
+          <VoiceConsent given={learner.voiceConsentAt !== null} messages={messages} />
+        </section>
+      ) : null}
     </>
   );
 }
