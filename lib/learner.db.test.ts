@@ -8,6 +8,7 @@ import {
   fsrsReviewLogs,
   learnerErrorPatterns,
   learnerProfiles,
+  sessionFeedback,
   sessions,
   sessionTurns,
   voiceUsage,
@@ -171,6 +172,13 @@ async function seedLearner(db: Db, learnerId: string) {
   await db
     .insert(sessionTurns)
     .values({ sessionId: session!.sessionId, position: 0, role: "user", content: "Hi" });
+  await db.insert(sessionFeedback).values({
+    sessionId: session!.sessionId,
+    learnerId,
+    status: "done",
+    items: [],
+    vocabulary: [],
+  });
   const [card] = await db
     .insert(fsrsCards)
     .values({
@@ -214,13 +222,15 @@ async function rowsFor(db: Db, learnerId: string) {
       | typeof fsrsReviewLogs
       | typeof learnerErrorPatterns
       | typeof voiceUsage
-      | typeof learnerProfiles,
+      | typeof learnerProfiles
+      | typeof sessionFeedback,
   ) => (await db.select().from(table).where(eq(table.learnerId, learnerId))).length;
 
   return {
     learnerProfiles: await count(learnerProfiles),
     sessions: learnerSessions.length,
     sessionTurns: turns,
+    sessionFeedback: await count(sessionFeedback),
     fsrsCards: await count(fsrsCards),
     fsrsReviewLogs: await count(fsrsReviewLogs),
     learnerErrorPatterns: await count(learnerErrorPatterns),
@@ -232,6 +242,7 @@ const ONE_OF_EACH = {
   learnerProfiles: 1,
   sessions: 1,
   sessionTurns: 1,
+  sessionFeedback: 1,
   fsrsCards: 1,
   fsrsReviewLogs: 1,
   learnerErrorPatterns: 1,

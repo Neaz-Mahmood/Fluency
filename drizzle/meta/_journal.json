@@ -15,6 +15,13 @@
       "when": 1792573966855,
       "tag": "0001_native_bangla",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792653007345,
+      "tag": "0002_session_feedback",
+      "breakpoints": true
     }
   ]
 }
