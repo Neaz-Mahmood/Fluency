@@ -137,6 +137,19 @@ const en = {
     saved: "Saved",
     saveFailed: "Couldn't save. Try again.",
   },
+  writing: {
+    title: "Writing coach",
+    intro:
+      "Paste an email or a short paragraph in English. You'll get corrections for real mistakes and optional tips to sound more natural.",
+    placeholder: "Dear Mr. Rahman, …",
+    submit: "Check my writing",
+    submitting: "Sending…",
+    errors: {
+      empty: "Write something first.",
+      "too-long": "That's too long. Keep it under 2,000 characters.",
+      failed: "Something went wrong. Try again.",
+    },
+  },
 };
 
 export type Messages = typeof en;
@@ -279,6 +292,19 @@ const bn: Messages = {
     saving: "রাখা হচ্ছে…",
     saved: "রাখা হয়েছে",
     saveFailed: "রাখা যায়নি। আবার চেষ্টা করুন।",
+  },
+  writing: {
+    title: "লেখার কোচ",
+    intro:
+      "ইংরেজিতে একটি ইমেইল বা ছোট অনুচ্ছেদ লিখুন বা পেস্ট করুন। আসল ভুলগুলোর সংশোধন আর আরও স্বাভাবিক শোনানোর ঐচ্ছিক পরামর্শ পাবেন।",
+    placeholder: "প্রিয় রহমান সাহেব, …",
+    submit: "আমার লেখা যাচাই করুন",
+    submitting: "পাঠানো হচ্ছে…",
+    errors: {
+      empty: "আগে কিছু লিখুন।",
+      "too-long": "লেখাটি অনেক বড়। ২,০০০ অক্ষরের মধ্যে রাখুন।",
+      failed: "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।",
+    },
   },
 };
 

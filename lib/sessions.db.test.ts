@@ -12,6 +12,7 @@ import {
   loadTurns,
   recordFirstAudio,
   saveExchange,
+  saveWritingTurn,
   startSession,
 } from "@/lib/sessions";
 import { createTestDb, resetTestDb } from "@/test/db";
@@ -520,5 +521,31 @@ describe("session_feedback", () => {
       .from(sessionFeedback)
       .where(eq(sessionFeedback.sessionId, sessionId));
     expect(remaining).toEqual([]);
+  });
+});
+
+describe("saveWritingTurn", () => {
+  it("starts a writing session and saves its turn", async () => {
+    const learnerId = await newLearner();
+    const session = await startSession(db, {
+      learnerId,
+      mode: "writing",
+      scenarioId: null,
+    });
+    expect(session).toMatchObject({ learnerId, mode: "writing", scenarioId: null });
+
+    await saveWritingTurn(db, {
+      sessionId: session.sessionId,
+      content: "This is a test paragraph.",
+    });
+
+    expect(await turnsOf(session.sessionId)).toEqual([
+      {
+        position: 0,
+        role: "user",
+        content: "This is a test paragraph.",
+        inputMode: "typed",
+      },
+    ]);
   });
 });

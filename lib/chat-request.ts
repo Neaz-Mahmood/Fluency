@@ -22,7 +22,7 @@ export type ChatRequest =
   | (ChatRequestBase & { mode: "placement" });
 
 const MAX_TURNS = 40;
-const MAX_CHARS = 2000;
+export const MAX_CHARS = 2000;
 
 export function parseChatRequest(body: unknown): ChatRequest | { error: string } {
   if (!body || typeof body !== "object") {

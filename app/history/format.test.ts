@@ -7,6 +7,10 @@ describe("formatSessionTitle", () => {
     expect(formatSessionTitle({ mode: "placement", scenarioId: "cafe" })).toBe("Placement");
   });
 
+  it("returns Writing when mode is writing", () => {
+    expect(formatSessionTitle({ mode: "writing", scenarioId: "cafe" })).toBe("Writing");
+  });
+
   it("returns the scenario title for known scenarios", () => {
     expect(formatSessionTitle({ mode: "conversation", scenarioId: "cafe" })).toBe(
       "Ordering at a café",

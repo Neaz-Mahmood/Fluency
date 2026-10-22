@@ -41,10 +41,7 @@ export async function findSession(
     .select()
     .from(sessions)
     .where(
-      and(
-        eq(sessions.sessionId, options.sessionId),
-        eq(sessions.learnerId, options.learnerId),
-      ),
+      and(eq(sessions.sessionId, options.sessionId), eq(sessions.learnerId, options.learnerId)),
     );
   return existing ?? null;
 }
@@ -74,12 +71,26 @@ export async function startSession(
   db: Db,
   options: {
     learnerId: string;
-    mode: "conversation" | "placement";
+    mode: "conversation" | "placement" | "writing";
     scenarioId: ScenarioId | null;
   },
 ): Promise<Session> {
   const [created] = await db.insert(sessions).values(options).returning();
   return created!;
+}
+
+// A writing session's single turn: the learner's text, typed.
+export async function saveWritingTurn(
+  db: Db,
+  options: { sessionId: string; content: string },
+): Promise<void> {
+  await db.insert(sessionTurns).values({
+    sessionId: options.sessionId,
+    position: 0,
+    role: "user",
+    content: options.content,
+    inputMode: "typed",
+  });
 }
 
 // Ends the learner's open session, returning null if already ended or not found.
