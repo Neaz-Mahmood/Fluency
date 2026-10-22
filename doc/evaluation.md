@@ -33,6 +33,18 @@ scripts/eval/eval.test.ts       # Unit tests for parsing, scoring, and golden se
   - `Edits`: Count of expected edits, predicted edits, and matched edits (each expected edit matched at most once via normalized spans).
   - `Edit F0.5`: Harmonic mean weighting precision over recall (beta = 0.5) across normalized edit spans.
 
+## Current baseline
+
+Measured 2026-10-22 on 200 bn → en sentences (`scripts/eval/golden/bn-en.json`, 100 error-free) using `claude-opus-5-5` via OpenCode:
+
+- **Over-correction**: 0/100 (0.0%)
+- **Edits**: expected 100, predicted 97, matched 93
+- **Edit F0.5**: 0.953 (precision 0.959, recall 0.930), on normalized span match, not ERRANT
+- Recorded in `scripts/eval/baseline.json`.
+
 ## Notes
 
+- The golden set is model-drafted. Claude fixed 4 items; the rest await a Bangla-speaking reviewer. Three contested South Asian usages are still marked as errors: #129 "give the exam", #139 "congratulated me for", #153 "took admission in".
+- Clean textbook sentences probably overstate real-transcript quality; add sentences from real sessions once there are some.
+- A live run takes over 10 minutes; the first attempt failed on a network reset (`ECONNRESET`), and the harness has no retry.
 - Zero external dependencies: Node 26 executes `eval.ts` directly via native type stripping with `--conditions=react-server`.
