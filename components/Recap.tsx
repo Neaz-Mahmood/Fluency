@@ -1,11 +1,16 @@
 import { RecapRefresher } from "@/components/RecapRefresher";
+import { SaveCardButton } from "@/components/SaveCardButton";
 import type { SessionFeedback } from "@/lib/db/schema";
 import type { Messages } from "@/lib/messages";
 
 export function Recap({
+  sessionId,
+  savedItems,
   feedback,
   messages,
 }: {
+  sessionId: string;
+  savedItems: Set<string>;
   feedback: Pick<SessionFeedback, "status" | "items" | "vocabulary">;
   messages: Messages;
 }) {
@@ -28,7 +33,7 @@ export function Recap({
             <p className="text-sm leading-relaxed text-oceanic-muted">{messages.recap.none}</p>
           ) : (
             <div className="flex flex-col gap-4">
-              {feedback.items.map((item) => (
+              {feedback.items.map((item, itemIndex) => (
                 <div
                   key={`${item.turnId}-${item.line}`}
                   className="flex flex-col gap-3 rounded-md border border-oceanic-border bg-white p-4"
@@ -52,14 +57,24 @@ export function Recap({
                           {item.minimalCorrection}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                          {item.edits.map((edit, editIndex) => (
-                            <span
-                              key={editIndex}
-                              className="inline-flex items-center rounded border border-oceanic-border bg-white px-2 py-0.5 text-xs text-oceanic-muted"
-                            >
-                              {edit.original} → {edit.correction}
-                            </span>
-                          ))}
+                          {item.edits.map((edit, editIndex) => {
+                            const trimmedCorrection = edit.correction.trim();
+                            return (
+                              <div key={editIndex} className="inline-flex items-center gap-1.5">
+                                <span className="inline-flex items-center rounded border border-oceanic-border bg-white px-2 py-0.5 text-xs text-oceanic-muted">
+                                  {edit.original} → {edit.correction}
+                                </span>
+                                {trimmedCorrection !== "" ? (
+                                  <SaveCardButton
+                                    sessionId={sessionId}
+                                    target={{ kind: "edit", item: itemIndex, edit: editIndex }}
+                                    saved={savedItems.has(trimmedCorrection)}
+                                    messages={messages}
+                                  />
+                                ) : null}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : null}
@@ -105,16 +120,24 @@ export function Recap({
                 {messages.recap.vocabulary}
               </h3>
               <ul className="flex flex-col gap-2">
-                {feedback.vocabulary.map((vocab, index) => (
+                {feedback.vocabulary.map((word, index) => (
                   <li
                     key={index}
                     className="flex flex-col gap-0.5 rounded border border-oceanic-border bg-oceanic-subtle p-3 text-sm"
                   >
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <span className="font-bold text-oceanic-imperial">{vocab.item}</span>
-                      <span className="text-xs text-oceanic-muted">{vocab.meaning}</span>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="font-bold text-oceanic-imperial">{word.item}</span>
+                        <span className="text-xs text-oceanic-muted">{word.meaning}</span>
+                      </div>
+                      <SaveCardButton
+                        sessionId={sessionId}
+                        target={{ kind: "word", index }}
+                        saved={savedItems.has(word.item)}
+                        messages={messages}
+                      />
                     </div>
-                    <p className="text-xs italic text-oceanic-muted">{vocab.example}</p>
+                    <p className="text-xs italic text-oceanic-muted">{word.example}</p>
                   </li>
                 ))}
               </ul>

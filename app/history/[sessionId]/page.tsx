@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { formatSessionDate, formatSessionTitle } from "@/app/history/format";
 import { Recap } from "@/components/Recap";
 import { Transcript } from "@/components/Transcript";
+import { savedTargetItems } from "@/lib/cards";
 import { getDb } from "@/lib/db";
 import { getFeedback } from "@/lib/feedback-store";
 import { getLearner } from "@/lib/learner";
@@ -48,6 +49,17 @@ async function HistoryDetail({ params }: { params: Params }) {
     session.mode !== "placement"
       ? await getFeedback(getDb(), { learnerId: learner.learnerId, sessionId })
       : null;
+  const savedItems =
+    feedback?.status === "done"
+      ? await savedTargetItems(getDb(), learner.learnerId, [
+          ...feedback.items.flatMap((item) =>
+            item.edits
+              .map((edit) => edit.correction.trim())
+              .filter((correction) => correction !== ""),
+          ),
+          ...feedback.vocabulary.map((vocab) => vocab.item),
+        ])
+      : new Set<string>();
   const messages = getMessages(learner.nativeLanguage);
 
   return (
@@ -67,7 +79,14 @@ async function HistoryDetail({ params }: { params: Params }) {
         </Link>
       </div>
 
-      {feedback ? <Recap feedback={feedback} messages={messages} /> : null}
+      {feedback ? (
+        <Recap
+          sessionId={sessionId}
+          savedItems={savedItems}
+          feedback={feedback}
+          messages={messages}
+        />
+      ) : null}
 
       <div className="flex min-h-96 flex-1 flex-col overflow-y-auto rounded-lg border border-oceanic-border bg-oceanic-subtle p-5 shadow-inner">
         <Transcript turns={turns} interim="" messages={messages} />

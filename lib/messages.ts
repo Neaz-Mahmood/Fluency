@@ -132,6 +132,10 @@ const en = {
     upgradeAlso: "Optional",
     why: "Why",
     vocabulary: "Words to remember",
+    save: "Save to flashcards",
+    saving: "Saving…",
+    saved: "Saved",
+    saveFailed: "Couldn't save. Try again.",
   },
 };
 
@@ -271,6 +275,10 @@ const bn: Messages = {
     upgradeAlso: "ঐচ্ছিক",
     why: "কেন",
     vocabulary: "মনে রাখার মতো শব্দ",
+    save: "ফ্ল্যাশকার্ডে রাখুন",
+    saving: "রাখা হচ্ছে…",
+    saved: "রাখা হয়েছে",
+    saveFailed: "রাখা যায়নি। আবার চেষ্টা করুন।",
   },
 };
 
