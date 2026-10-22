@@ -16,15 +16,23 @@ scripts/eval/eval.test.ts       # Unit tests for parsing, scoring, and golden se
 
 ## How it works
 
+- **Prompt execution**: The harness runs the real correction prompt (`lib/feedback.ts`) against the feedback model, in batches of 20.
+- **Span matching & metrics**: Edit matching uses normalized spans, and F0.5 is edit-level, not ERRANT.
 - **File format**: Golden sets are JSON arrays of items with string `id`/`input`, `expected_edits` array of `{ original, correction }`, and boolean `is_error_free` matching `expected_edits.length === 0`.
-- **How to run**: `pnpm eval` parses `scripts/eval/golden/bn-en.json`, runs the corrector, scores predictions, and prints the summary.
+- **How to run**:
+  - `pnpm eval`: Runs the real corrector against `scripts/eval/golden/bn-en.json`, scores predictions, and enforces the gate.
+  - `pnpm eval -- --no-model`: Runs the offline baseline without calling the model.
+  - `pnpm eval -- --write-baseline`: Records `scripts/eval/baseline.json` after a passing run.
+- **Exit codes**:
+  - `0`: Successful evaluation run passing all gates.
+  - `1`: The exit code is 1 when over-correction reaches 5% or rises by more than one sentence over the baseline.
+  - `2`: The exit code is 2 when no Claude/OpenCode provider is configured.
 - **What the numbers mean**:
   - `Sentences`: Total items and error-free items count.
   - `Over-correction`: Error-free items with ≥1 predicted edit over total error-free items (0% when error-free is 0).
-  - `Edits`: Count of expected edits, predicted edits, and exact matched edits (each expected edit matched at most once).
+  - `Edits`: Count of expected edits, predicted edits, and matched edits (each expected edit matched at most once via normalized spans).
+  - `Edit F0.5`: Harmonic mean weighting precision over recall (beta = 0.5) across normalized edit spans.
 
 ## Notes
 
-- Uses a baseline `noEdits` corrector until Phase 3 swaps in the real LLM correction prompt.
-- To plug in a corrector in Phase 3, provide an implementation conforming to `Corrector = (input: string) => Promise<Edit[]>`.
-- Zero external dependencies: Node 26 executes `eval.ts` directly via native type stripping.
+- Zero external dependencies: Node 26 executes `eval.ts` directly via native type stripping with `--conditions=react-server`.

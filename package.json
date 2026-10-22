@@ -10,7 +10,7 @@
     "format": "prettier --write .",
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
-    "eval": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/eval/eval.ts",
+    "eval": "node --conditions=react-server --env-file-if-exists=.env --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/eval/eval.ts",
     "db:up": "docker compose up -d --wait db",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
