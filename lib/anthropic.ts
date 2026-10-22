@@ -7,6 +7,8 @@ import type { ChatTurn } from "@/lib/chat-request";
 export const CLAUDE_MODELS = {
   conversation: "claude-sonnet-5-5",
   feedback: "claude-opus-5-5",
+  // Candidate for the Phase 4 voice loop; compared in scripts/voice/ttft.ts.
+  live: "claude-haiku-5-5",
 } as const;
 
 // OpenCode serves the same Claude models through an Anthropic-compatible Messages API.
