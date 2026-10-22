@@ -62,6 +62,8 @@ const en = {
   practice: {
     activeScenario: "Active Scenario",
     switchScenario: "Switch scenario",
+    finish: "Finish and get feedback",
+    finishing: "Finishing…",
     statusListening: "Listening…",
     statusThinking: "Processing…",
     statusSpeaking: "Speaking…",
@@ -117,6 +119,19 @@ const en = {
     startPracticing: "Start practicing",
     error: "Your level could not be calculated. Try again.",
     retry: "Try again",
+  },
+  recap: {
+    title: "Your feedback",
+    pending: "Preparing your feedback… This takes about half a minute.",
+    failed: "Feedback could not be prepared for this conversation.",
+    none: "No corrections this time. Nice work!",
+    youSaid: "You said",
+    correct: "Correct form",
+    upgrade: "More natural",
+    upgradeOptional: "Optional: your version was correct",
+    upgradeAlso: "Optional",
+    why: "Why",
+    vocabulary: "Words to remember",
   },
 };
 
@@ -186,6 +201,8 @@ const bn: Messages = {
   practice: {
     activeScenario: "বর্তমান পরিস্থিতি",
     switchScenario: "পরিস্থিতি পরিবর্তন করুন",
+    finish: "শেষ করে ফিডব্যাক দেখুন",
+    finishing: "শেষ হচ্ছে…",
     statusListening: "শুনছি…",
     statusThinking: "প্রসেসিং হচ্ছে…",
     statusSpeaking: "বলছে…",
@@ -241,6 +258,19 @@ const bn: Messages = {
     startPracticing: "অনুশীলন শুরু করুন",
     error: "আপনার লেভেল হিসাব করা যায়নি। আবার চেষ্টা করুন।",
     retry: "আবার চেষ্টা করুন",
+  },
+  recap: {
+    title: "আপনার ফিডব্যাক",
+    pending: "আপনার ফিডব্যাক তৈরি হচ্ছে… প্রায় আধা মিনিট লাগবে।",
+    failed: "এই কথোপকথনের ফিডব্যাক তৈরি করা যায়নি।",
+    none: "এবার কোনো সংশোধন নেই। দারুণ!",
+    youSaid: "আপনি বলেছেন",
+    correct: "সঠিক রূপ",
+    upgrade: "আরও স্বাভাবিক",
+    upgradeOptional: "ঐচ্ছিক: আপনার বাক্যটি সঠিক ছিল",
+    upgradeAlso: "ঐচ্ছিক",
+    why: "কেন",
+    vocabulary: "মনে রাখার মতো শব্দ",
   },
 };
 
