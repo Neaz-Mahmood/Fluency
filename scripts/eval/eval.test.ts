@@ -16,7 +16,7 @@ describe("parseGoldenSet", () => {
     const goldenPath = fileURLToPath(new URL("./golden/bn-en.json", import.meta.url));
     const raw = JSON.parse(readFileSync(goldenPath, "utf-8"));
     const items = parseGoldenSet(raw);
-    expect(items).toHaveLength(10);
+    expect(items.length).toBeGreaterThanOrEqual(10);
     expect(items[0]).toEqual({
       id: "bn-en-001",
       input: "I am student of a university in Dhaka.",
@@ -176,13 +176,40 @@ describe("score", () => {
 });
 
 describe("golden file bn-en.json", () => {
-  it("has 10 items with at least 4 error-free", () => {
-    const goldenPath = fileURLToPath(new URL("./golden/bn-en.json", import.meta.url));
-    const raw = JSON.parse(readFileSync(goldenPath, "utf-8"));
-    const items = parseGoldenSet(raw);
-    expect(items).toHaveLength(10);
-    const errorFree = items.filter((item) => item.is_error_free);
-    expect(errorFree.length).toBeGreaterThanOrEqual(4);
+  const goldenPath = fileURLToPath(new URL("./golden/bn-en.json", import.meta.url));
+  const raw = JSON.parse(readFileSync(goldenPath, "utf-8"));
+  const items = parseGoldenSet(raw);
+
+  it("parses with parseGoldenSet and has at least 200 items", () => {
+    expect(items.length).toBeGreaterThanOrEqual(200);
+  });
+
+  it("has at least 30% error-free items", () => {
+    const errorFree = items.filter((item) => item.is_error_free).length;
+    expect(errorFree / items.length).toBeGreaterThanOrEqual(0.3);
+  });
+
+  it("has ids bn-en-001 ... in order with no gaps", () => {
+    for (let index = 0; index < items.length; index++) {
+      const expectedId = `bn-en-${String(index + 1).padStart(3, "0")}`;
+      expect(items[index].id).toBe(expectedId);
+    }
+  });
+
+  it("has every expected_edits[].original occurring exactly once in input", () => {
+    for (const item of items) {
+      for (const edit of item.expected_edits) {
+        expect(item.input.split(edit.original).length - 1).toBe(1);
+      }
+    }
+  });
+
+  it("has no two items with the same input", () => {
+    const seen = new Set<string>();
+    for (const item of items) {
+      expect(seen.has(item.input)).toBe(false);
+      seen.add(item.input);
+    }
   });
 });
 
