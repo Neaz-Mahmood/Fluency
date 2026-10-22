@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, lt, notInArray, sql } from "drizzle-orm";
 
 import type { Db } from "@/lib/db";
 import {
@@ -194,4 +194,39 @@ export async function recordErrorPatterns(
         .where(whereClause);
     }
   });
+}
+
+// A pattern counts as resolved after this many sessions in its modality without it.
+export const RESOLVED_AFTER_SESSIONS = 3;
+
+export async function activeErrorExamples(
+  db: Db,
+  learnerId: string,
+  limit: number,
+): Promise<{ said: string; correct: string }[]> {
+  if (limit <= 0) {
+    return [];
+  }
+
+  const rows = await db
+    .select({
+      said: learnerErrorPatterns.lastExampleLearnerInput,
+      correct: learnerErrorPatterns.lastExampleMinimalCorrection,
+    })
+    .from(learnerErrorPatterns)
+    .where(
+      and(
+        eq(learnerErrorPatterns.learnerId, learnerId),
+        lt(learnerErrorPatterns.resolvedStreak, RESOLVED_AFTER_SESSIONS),
+        isNotNull(learnerErrorPatterns.lastExampleLearnerInput),
+        isNotNull(learnerErrorPatterns.lastExampleMinimalCorrection),
+      ),
+    )
+    .orderBy(desc(learnerErrorPatterns.occurrenceCount), desc(learnerErrorPatterns.lastSeenAt))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    said: row.said!,
+    correct: row.correct!,
+  }));
 }

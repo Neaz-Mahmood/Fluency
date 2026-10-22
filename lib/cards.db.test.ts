@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import {
   countDueCards,
+  dueCardItems,
   getCard,
   nextDueCard,
   recentLatencies,
@@ -246,6 +247,72 @@ describe("countDueCards", () => {
 
     const past = new Date("2026-01-01T10:00:00Z");
     expect(await countDueCards(db, learner1, past)).toBe(0);
+  });
+});
+
+describe("dueCardItems", () => {
+  it("returns only due items for that learner, earliest first, and respects limit", async () => {
+    const learner1 = await newLearner();
+    const learner2 = await newLearner();
+    const now = new Date("2026-01-01T12:00:00Z");
+
+    expect(await dueCardItems(db, learner1, now, 5)).toEqual([]);
+
+    const c1 = await saveCard(db, {
+      learnerId: learner1,
+      cardType: "VOCABULARY",
+      targetItem: "earlier-due",
+      nativeTranslation: "meaning 1",
+    });
+    await db
+      .update(fsrsCards)
+      .set({ due: new Date("2026-01-01T11:50:00Z") })
+      .where(eq(fsrsCards.cardId, c1.card.cardId));
+
+    const c2 = await saveCard(db, {
+      learnerId: learner1,
+      cardType: "VOCABULARY",
+      targetItem: "earliest-due",
+      nativeTranslation: "meaning 2",
+    });
+    await db
+      .update(fsrsCards)
+      .set({ due: new Date("2026-01-01T11:40:00Z") })
+      .where(eq(fsrsCards.cardId, c2.card.cardId));
+
+    const c3 = await saveCard(db, {
+      learnerId: learner1,
+      cardType: "VOCABULARY",
+      targetItem: "future-card",
+      nativeTranslation: "meaning 3",
+    });
+    await db
+      .update(fsrsCards)
+      .set({ due: new Date("2026-01-01T12:10:00Z") })
+      .where(eq(fsrsCards.cardId, c3.card.cardId));
+
+    const c4 = await saveCard(db, {
+      learnerId: learner2,
+      cardType: "VOCABULARY",
+      targetItem: "other-learner-card",
+      nativeTranslation: "meaning 4",
+    });
+    await db
+      .update(fsrsCards)
+      .set({ due: new Date("2026-01-01T11:30:00Z") })
+      .where(eq(fsrsCards.cardId, c4.card.cardId));
+
+    const items = await dueCardItems(db, learner1, now, 10);
+    expect(items).toEqual(["earliest-due", "earlier-due"]);
+
+    const limited = await dueCardItems(db, learner1, now, 1);
+    expect(limited).toEqual(["earliest-due"]);
+
+    const zero = await dueCardItems(db, learner1, now, 0);
+    expect(zero).toEqual([]);
+
+    const learner2Items = await dueCardItems(db, learner2, now, 5);
+    expect(learner2Items).toEqual(["other-learner-card"]);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getSystemPrompt, type PromptLearner } from "@/lib/prompts";
+import { getSystemPrompt, NO_TARGETS, type PromptLearner } from "@/lib/prompts";
 
 const EMPTY_LEARNER: PromptLearner = {
   cefrSpeaking: null,
@@ -16,7 +16,7 @@ describe("getSystemPrompt", () => {
         "You are Fluency, a patient English conversation partner. The learner is practicing spoken English with you.",
         "",
         "Rules:",
-        "- Reply in plain spoken English, usually one to three short sentences.",
+        "- Reply in plain spoken English: one to three short sentences and at most 45 words.",
         "- Stay inside the scenario and ask one natural follow-up so the conversation can continue.",
         "- Use everyday words. If you use a less common word, make its meaning clear from the sentence.",
         "- Do not lecture, do not list corrections, and do not mention that you are an AI unless the learner asks.",
@@ -150,5 +150,102 @@ describe("getSystemPrompt", () => {
     const prompt = getSystemPrompt("non-existent-scenario", EMPTY_LEARNER);
     const freeChatPrompt = getSystemPrompt("free-chat", EMPTY_LEARNER);
     expect(prompt).toBe(freeChatPrompt);
+  });
+
+  it("omits the practice targets block when NO_TARGETS or empty lists are passed", () => {
+    const withNoTargets = getSystemPrompt("free-chat", EMPTY_LEARNER, NO_TARGETS);
+    expect(withNoTargets).not.toContain("Practice targets");
+
+    const withEmpty = getSystemPrompt("free-chat", EMPTY_LEARNER, { items: [], mistakes: [] });
+    expect(withEmpty).not.toContain("Practice targets");
+
+    const defaultTargets = getSystemPrompt("free-chat", EMPTY_LEARNER);
+    expect(defaultTargets).not.toContain("Practice targets");
+  });
+
+  it("includes the practice targets block with items only", () => {
+    const prompt = getSystemPrompt("free-chat", EMPTY_LEARNER, {
+      items: ["a slice of cake", "Could I have...?"],
+      mistakes: [],
+    });
+
+    expect(prompt).toContain(
+      [
+        "Practice targets (at most one per reply, only when it fits naturally; never quiz, test or correct the learner):",
+        '- Words or phrases they are learning: "a slice of cake", "Could I have...?"',
+      ].join("\n"),
+    );
+    expect(prompt).not.toContain("A mistake they often make");
+  });
+
+  it("includes the practice targets block with mistakes only", () => {
+    const prompt = getSystemPrompt("free-chat", EMPTY_LEARNER, {
+      items: [],
+      mistakes: [
+        {
+          said: "I am liking the cake also.",
+          correct: "I like the cake also.",
+        },
+      ],
+    });
+
+    expect(prompt).toContain(
+      [
+        "Practice targets (at most one per reply, only when it fits naturally; never quiz, test or correct the learner):",
+        '- A mistake they often make: they said "I am liking the cake also." (correct: "I like the cake also.") Ask something that invites them to use the correct form.',
+      ].join("\n"),
+    );
+    expect(prompt).not.toContain("Words or phrases they are learning");
+  });
+
+  it("includes both items and mistakes in the practice targets block placed after the summary", () => {
+    const summary = "Practicing for a job interview. Has experience in IT.";
+    const prompt = getSystemPrompt(
+      "job-interview",
+      {
+        cefrSpeaking: "B1",
+        nativeLanguage: "bn-BD",
+        compactTutorSummary: summary,
+      },
+      {
+        items: ["a slice of cake"],
+        mistakes: [
+          {
+            said: "I am liking the cake also.",
+            correct: "I like the cake also.",
+          },
+        ],
+      },
+    );
+
+    const summaryIndex = prompt.indexOf("What you know about this learner");
+    const targetsIndex = prompt.indexOf("Practice targets");
+
+    expect(summaryIndex).toBeGreaterThan(-1);
+    expect(targetsIndex).toBeGreaterThan(summaryIndex);
+
+    expect(prompt).toContain(
+      [
+        "Practice targets (at most one per reply, only when it fits naturally; never quiz, test or correct the learner):",
+        '- Words or phrases they are learning: "a slice of cake"',
+        '- A mistake they often make: they said "I am liking the cake also." (correct: "I like the cake also.") Ask something that invites them to use the correct form.',
+      ].join("\n"),
+    );
+  });
+
+  it("cuts long strings to 80 characters with an ellipsis and trims whitespace", () => {
+    const longItem = "   " + "x".repeat(90) + "   ";
+    const longSaid = "y".repeat(100);
+    const longCorrect = "z".repeat(100);
+
+    const prompt = getSystemPrompt("free-chat", EMPTY_LEARNER, {
+      items: [longItem],
+      mistakes: [{ said: longSaid, correct: longCorrect }],
+    });
+
+    expect(prompt).toContain(`- Words or phrases they are learning: "${"x".repeat(80)}…"`);
+    expect(prompt).toContain(
+      `- A mistake they often make: they said "${"y".repeat(80)}…" (correct: "${"z".repeat(80)}…") Ask something that invites them to use the correct form.`,
+    );
   });
 });

@@ -1,12 +1,19 @@
 import { after } from "next/server";
 
 import { streamReply } from "@/lib/ai";
+import { dueCardItems } from "@/lib/cards";
 import { buildHistory, parseChatRequest, type ChatTurn } from "@/lib/chat-request";
 import { getDb } from "@/lib/db";
 import type { LearnerProfile, Session } from "@/lib/db/schema";
+import { activeErrorExamples } from "@/lib/feedback-store";
 import { getLearner } from "@/lib/learner";
 import { PLACEMENT_MAX_ANSWERS } from "@/lib/placement";
-import { getPlacementPrompt, getSystemPrompt } from "@/lib/prompts";
+import {
+  getPlacementPrompt,
+  getSystemPrompt,
+  NO_TARGETS,
+  type PracticeTargets,
+} from "@/lib/prompts";
 import { resolveProvider } from "@/lib/provider";
 import { providerErrorResponse, toProviderError } from "@/lib/provider-errors";
 import { startReply, type StartedReply } from "@/lib/reply-stream";
@@ -32,10 +39,18 @@ export async function POST(request: Request) {
   }
 
   let learner: LearnerProfile;
+  let targets: PracticeTargets = NO_TARGETS;
   let existing: Session | null = null;
   let savedTurns: ChatTurn[] = [];
   try {
     learner = await getLearner();
+    if (parsed.mode === "conversation") {
+      const [items, mistakes] = await Promise.all([
+        dueCardItems(getDb(), learner.learnerId, new Date(), 2),
+        activeErrorExamples(getDb(), learner.learnerId, 2),
+      ]);
+      targets = { items, mistakes };
+    }
     if (parsed.sessionId) {
       existing = await findOpenSession(
         getDb(),
@@ -75,7 +90,7 @@ export async function POST(request: Request) {
   const system =
     parsed.mode === "placement"
       ? getPlacementPrompt(answers)
-      : getSystemPrompt(parsed.scenarioId, learner);
+      : getSystemPrompt(parsed.scenarioId, learner, targets);
 
   const reply = streamReply(selected, { system, messages });
 

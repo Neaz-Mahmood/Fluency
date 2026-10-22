@@ -10,10 +10,15 @@ export type PromptLearner = Pick<
   "cefrSpeaking" | "nativeLanguage" | "compactTutorSummary"
 >;
 
+export type PracticeTargets = { items: string[]; mistakes: { said: string; correct: string }[] };
+export const NO_TARGETS: PracticeTargets = { items: [], mistakes: [] };
+// Keeps the targets block short; each item or example is cut to this many characters.
+const TARGET_MAX_CHARS = 80;
+
 const BASE_PROMPT = `You are Fluency, a patient English conversation partner. The learner is practicing spoken English with you.
 
 Rules:
-- Reply in plain spoken English, usually one to three short sentences.
+- Reply in plain spoken English: one to three short sentences and at most 45 words.
 - Stay inside the scenario and ask one natural follow-up so the conversation can continue.
 - Use everyday words. If you use a less common word, make its meaning clear from the sentence.
 - Do not lecture, do not list corrections, and do not mention that you are an AI unless the learner asks.
@@ -25,8 +30,7 @@ const SCENARIO_PROMPTS: Record<ScenarioId, string> = {
     "Scenario: free conversation. Start from the learner's life — their day, work, studies, or plans. Keep it warm and curious.",
   "job-interview":
     "Scenario: you are the interviewer. Ask one interview question at a time about experience, strengths, or a past challenge. React briefly to their answer before the next question. Let them name the job if they have not yet.",
-  cafe:
-    "Scenario: you are a café barista. The learner is the customer. Take their order, offer one simple choice if they hesitate, and handle small problems like a missing item or paying.",
+  cafe: "Scenario: you are a café barista. The learner is the customer. Take their order, offer one simple choice if they hesitate, and handle small problems like a missing item or paying.",
   neighbor:
     "Scenario: you just met the learner in the hallway of an apartment building. Introduce yourself once, then make light small talk about the building, the neighborhood, or the weekend.",
 };
@@ -73,7 +77,42 @@ function getSummaryBlock(summary: string): string | null {
   return `What you know about this learner from earlier sessions (use it naturally, do not recite it):\n${trimmed}`;
 }
 
-export function getSystemPrompt(scenarioId: string, learner: PromptLearner): string {
+function clip(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length > TARGET_MAX_CHARS) {
+    return trimmed.slice(0, TARGET_MAX_CHARS) + "…";
+  }
+  return trimmed;
+}
+
+function getTargetsBlock(targets: PracticeTargets): string | null {
+  if (targets.items.length === 0 && targets.mistakes.length === 0) {
+    return null;
+  }
+
+  const lines: string[] = [
+    "Practice targets (at most one per reply, only when it fits naturally; never quiz, test or correct the learner):",
+  ];
+
+  if (targets.items.length > 0) {
+    const quotedItems = targets.items.map((item) => `"${clip(item)}"`);
+    lines.push(`- Words or phrases they are learning: ${quotedItems.join(", ")}`);
+  }
+
+  for (const mistake of targets.mistakes) {
+    lines.push(
+      `- A mistake they often make: they said "${clip(mistake.said)}" (correct: "${clip(mistake.correct)}") Ask something that invites them to use the correct form.`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export function getSystemPrompt(
+  scenarioId: string,
+  learner: PromptLearner,
+  targets: PracticeTargets = NO_TARGETS,
+): string {
   const id: ScenarioId = isScenarioId(scenarioId) ? scenarioId : "free-chat";
   const blocks = [BASE_PROMPT, SCENARIO_PROMPTS[id]];
 
@@ -82,6 +121,9 @@ export function getSystemPrompt(scenarioId: string, learner: PromptLearner): str
 
   const summaryBlock = getSummaryBlock(learner.compactTutorSummary);
   if (summaryBlock) blocks.push(summaryBlock);
+
+  const targetsBlock = getTargetsBlock(targets);
+  if (targetsBlock) blocks.push(targetsBlock);
 
   return blocks.join("\n\n");
 }

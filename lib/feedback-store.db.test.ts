@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { learnerErrorPatterns, sessionFeedback, type StoredFeedbackItem } from "@/lib/db/schema";
 import {
+  activeErrorExamples,
   getFeedback,
   markFeedbackFailed,
   markFeedbackPending,
@@ -294,5 +295,131 @@ describe("recordErrorPatterns", () => {
       (p) => p.modality === "SPEAKING_GRAMMAR" && p.errorCode === "M:DET",
     );
     expect(speakingDetAfterThird?.resolvedStreak).toBe(1);
+  });
+});
+
+describe("activeErrorExamples", () => {
+  it("skips resolved patterns and patterns without examples, orders by count then recency, and respects limit", async () => {
+    const learner1 = await newLearner();
+    const learner2 = await newLearner();
+
+    const t1 = new Date("2026-01-01T10:00:00Z");
+    const t2 = new Date("2026-01-01T11:00:00Z");
+    const t3 = new Date("2026-01-01T12:00:00Z");
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner1,
+      modality: "SPEAKING_GRAMMAR",
+      errorCode: "R:VERB:TENSE",
+      description: "Past tense",
+      occurrenceCount: 5,
+      resolvedStreak: 0,
+      lastExampleLearnerInput: "I go yesterday",
+      lastExampleMinimalCorrection: "I went yesterday",
+      lastSeenAt: t1,
+    });
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner1,
+      modality: "SPEAKING_GRAMMAR",
+      errorCode: "M:DET",
+      description: "Missing article",
+      occurrenceCount: 10,
+      resolvedStreak: 2,
+      lastExampleLearnerInput: "I saw cat",
+      lastExampleMinimalCorrection: "I saw a cat",
+      lastSeenAt: t2,
+    });
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner1,
+      modality: "WRITING_GRAMMAR",
+      errorCode: "WO:ADV",
+      description: "Adverb order",
+      occurrenceCount: 5,
+      resolvedStreak: 1,
+      lastExampleLearnerInput: "I slowly walked",
+      lastExampleMinimalCorrection: "I walked slowly",
+      lastSeenAt: t3,
+    });
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner1,
+      modality: "SPEAKING_GRAMMAR",
+      errorCode: "RESOLVED:1",
+      description: "Resolved pattern",
+      occurrenceCount: 20,
+      resolvedStreak: 3,
+      lastExampleLearnerInput: "bad input",
+      lastExampleMinimalCorrection: "good input",
+      lastSeenAt: t3,
+    });
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner1,
+      modality: "SPEAKING_GRAMMAR",
+      errorCode: "RESOLVED:2",
+      description: "Resolved pattern",
+      occurrenceCount: 20,
+      resolvedStreak: 4,
+      lastExampleLearnerInput: "bad input",
+      lastExampleMinimalCorrection: "good input",
+      lastSeenAt: t3,
+    });
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner1,
+      modality: "SPEAKING_GRAMMAR",
+      errorCode: "NO:INPUT",
+      description: "No input example",
+      occurrenceCount: 15,
+      resolvedStreak: 0,
+      lastExampleLearnerInput: null,
+      lastExampleMinimalCorrection: "good input",
+      lastSeenAt: t3,
+    });
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner1,
+      modality: "SPEAKING_GRAMMAR",
+      errorCode: "NO:CORRECTION",
+      description: "No correction example",
+      occurrenceCount: 15,
+      resolvedStreak: 0,
+      lastExampleLearnerInput: "bad input",
+      lastExampleMinimalCorrection: null,
+      lastSeenAt: t3,
+    });
+
+    await db.insert(learnerErrorPatterns).values({
+      learnerId: learner2,
+      modality: "SPEAKING_GRAMMAR",
+      errorCode: "OTHER:LEARNER",
+      description: "Other learner pattern",
+      occurrenceCount: 50,
+      resolvedStreak: 0,
+      lastExampleLearnerInput: "other bad",
+      lastExampleMinimalCorrection: "other good",
+      lastSeenAt: t3,
+    });
+
+    const all = await activeErrorExamples(db, learner1, 10);
+    expect(all).toEqual([
+      { said: "I saw cat", correct: "I saw a cat" },
+      { said: "I slowly walked", correct: "I walked slowly" },
+      { said: "I go yesterday", correct: "I went yesterday" },
+    ]);
+
+    const limited = await activeErrorExamples(db, learner1, 2);
+    expect(limited).toEqual([
+      { said: "I saw cat", correct: "I saw a cat" },
+      { said: "I slowly walked", correct: "I walked slowly" },
+    ]);
+
+    const zero = await activeErrorExamples(db, learner1, 0);
+    expect(zero).toEqual([]);
+
+    const learner2Patterns = await activeErrorExamples(db, learner2, 10);
+    expect(learner2Patterns).toEqual([{ said: "other bad", correct: "other good" }]);
   });
 });

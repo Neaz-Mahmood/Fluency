@@ -85,6 +85,27 @@ export async function countDueCards(db: Db, learnerId: string, now: Date): Promi
   return result?.total ?? 0;
 }
 
+// Due items for the live prompt's practice targets, earliest due first.
+export async function dueCardItems(
+  db: Db,
+  learnerId: string,
+  now: Date,
+  limit: number,
+): Promise<string[]> {
+  if (limit <= 0) {
+    return [];
+  }
+
+  const rows = await db
+    .select({ targetItem: fsrsCards.targetItem })
+    .from(fsrsCards)
+    .where(and(eq(fsrsCards.learnerId, learnerId), lte(fsrsCards.due, now)))
+    .orderBy(asc(fsrsCards.due))
+    .limit(limit);
+
+  return rows.map((row) => row.targetItem);
+}
+
 export async function getCard(
   db: Db,
   options: { learnerId: string; cardId: string },
