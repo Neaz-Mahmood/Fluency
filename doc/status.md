@@ -10,7 +10,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 
 ## Current status
 
-### Built and working (Phases 0–2)
+### Built and working (Phases 0–3)
 
 | Area                                                                                      | State                       | Where                                                                           |
 | ----------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------- |
@@ -30,17 +30,21 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 | Bangla UI                                                                                 | Working                     | `lib/messages.ts`                                                               |
 | Placement chat (provisional CEFR level)                                                   | Working                     | `app/placement/`, `lib/placement.ts`                                            |
 | Learner-aware prompt and learner summary                                                  | Working                     | `lib/prompts.ts`, `lib/summary.ts`, `app/practice/actions.ts`                   |
+| Post-session feedback and recap                                                           | Working                     | `lib/feedback.ts`, `lib/feedback-job.ts`, `components/Recap.tsx`                |
+| Error patterns                                                                            | Working                     | `lib/feedback-store.ts`                                                         |
+| Flashcards and review                                                                     | Working                     | `lib/cards.ts`, `lib/fsrs.ts`, `app/review/`                                    |
+| Writing coach                                                                             | Working                     | `app/write/`                                                                    |
 
 ### Health checks
 
-| Check           | Result                                                                                                                                                                                                |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tsc --noEmit`  | Passes                                                                                                                                                                                                |
-| `eslint .`      | Passes, no warnings                                                                                                                                                                                   |
-| `next build`    | Passes. `/api/chat` is dynamic; `/`, `/practice`, `/history`, `/history/[sessionId]`, `/onboarding`, `/placement` and `/settings` are partially prerendered (static shell, learner data streamed in). |
-| Automated tests | `pnpm test`: 157 unit tests in 15 files. `pnpm test:db`: 35 database tests in 2 files against `fluency_test`.                                                                                         |
-| `pnpm eval`     | Runs. Baseline "no edits" corrector on 10 golden sentences (4 error-free): over-correction 0/4 (0.0%), edits expected 6, predicted 0, matched 0.                                                      |
-| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`.                                                                                                                                             |
+| Check           | Result                                                                                                                                                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tsc --noEmit`  | Passes                                                                                                                                                                                                                     |
+| `eslint .`      | Passes, no warnings                                                                                                                                                                                                        |
+| `next build`    | Passes. `/api/chat` is dynamic; `/`, `/practice`, `/history`, `/history/[sessionId]`, `/onboarding`, `/placement`, `/review`, `/settings` and `/write` are partially prerendered (static shell, learner data streamed in). |
+| Automated tests | `pnpm test`: 258 unit tests in 18 files. `pnpm test:db`: 49 database tests in 4 files against `fluency_test`.                                                                                                              |
+| `pnpm eval`     | Runs. Live `claude-opus-5-5` on 200 bn → en sentences (100 error-free): over-correction 0/100 (0.0%), edits expected 100, predicted 97, matched 93, edit F0.5 0.953 (precision 0.959, recall 0.930).                       |
+| Version control | Git, pushed to GitHub. Feature work happens on `feat/v1`.                                                                                                                                                                  |
 
 ### Gaps and risks in the current code
 
@@ -54,8 +58,9 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 8. ~~**The prompt is the same for every learner.**~~ Fixed: `getSystemPrompt(scenarioId, learner)` adapts to the learner's CEFR speaking level, native language, and compact tutor summary (FLU-32).
 9. ~~**`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`.~~ Fixed: state machine moved to `hooks/useConversation.ts` and hex colors replaced with design tokens (FLU-26).
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
-11. **Placement's token limit is tight.** `finishPlacement` gives the feedback model `maxTokens: 200`, and Opus 5.5's thinking counts toward it, so the levels can be cut off. Tracked in FLU-38.
-12. **A closed tab builds no summary.** Only "Switch scenario" ends a session and builds the learner summary (FLU-31).
+11. ~~**Placement's token limit is tight.** `finishPlacement` gives the feedback model `maxTokens: 200`, and Opus 5.5's thinking counts toward it, so the levels can be cut off.~~ Fixed: raised `maxTokens` to 1,000 for the feedback model (FLU-38).
+12. **A closed tab builds neither a summary nor feedback.** Only "Finish and get feedback" and "Switch scenario" end a session and trigger the learner summary and feedback job.
+13. **The eval runs only locally.** There is no CI yet, so "CI fails the build if over-correction rises" isn't wired; `pnpm eval` already exits 1 on failure.
 
 ### Latency baseline
 
@@ -124,9 +129,28 @@ Done when: a new learner completes placement, finishes one session, and their ne
 - [x] "Delete my data" leaves no rows (test passes). `lib/learner.db.test.ts` seeds all 7 tables and checks they are empty after the delete.
 - [ ] Latency is logged on every turn, and a baseline p50/p90 is written into this page. Logging is in place; the p50/p90 baseline needs real spoken sessions (see Latency baseline).
 
-## After Phase 2
+### Phase 3 — Weeks 4–6: Feedback, flashcards, writing
 
-Phases 3–5 are in [roadmap.md](./roadmap.md). Login (email/password and Google) is the last part of Phase 5. Before starting Phase 3, update this page: move finished items into **Current status**, and break Phase 3 into weekly tasks the same way.
+- [x] **Correction prompt and parser.** Done (FLU-39): `lib/feedback.ts` defines the precision-first correction prompt, input formatter, parser dropping edits not found in the line, and explanation language rules.
+- [x] **Bangla golden set.** Done (FLU-40): expanded `scripts/eval/golden/bn-en.json` to 200 sentences (100 error-free) typical of Bangla-speaker English, pending native review.
+- [x] **Eval harness gate.** Done (FLU-41): `pnpm eval` runs the real corrector on the feedback model with a 5% over-correction gate and records `scripts/eval/baseline.json`.
+- [x] **Feedback and card schema.** Done (FLU-42): added writing session mode, `session_feedback`, and unique constraints on `fsrs_cards` in migration 0002.
+- [x] **Feedback job and error patterns.** Done (FLU-43): ending a session triggers `runFeedback` in `after()`, saving corrections and tracking ERRANT error codes and streaks in `learner_error_patterns`.
+- [x] **Feedback recap screen.** Done (FLU-44): "Finish and get feedback" ends the session and opens `/history/[sessionId]`, showing minimal edits, upgrades, explanations, and words to remember.
+- [x] **FSRS scheduling and speed grading.** Done (FLU-45): added `ts-fsrs` 5.4.2 scheduling and answer checking rated by latency with mode thresholds adapting after 30 reviews.
+- [x] **Save flashcards from recap.** Done (FLU-46): added save buttons on recap edits and vocabulary words, saving `GRAMMAR_PATTERN` and `VOCABULARY` cards by feedback index.
+- [x] **Card review with AI sentences.** Done (FLU-47): `/review` presents due cards with fresh AI-generated cloze sentences, grading spoken or typed answers and logging reviews.
+- [x] **Writing coach.** Done (FLU-48): `/write` accepts paragraphs or emails up to 2,000 characters, evaluates them sentence by sentence, and redirects to the recap.
+
+### Phase 3 exit check
+
+- [x] Over-correction on error-free golden sentences below 5%: 0/100 (0.0%) on 200 bn → en sentences (pending native review of the golden set).
+- [x] Edit F0.5 recorded as a baseline: 0.953 in `scripts/eval/baseline.json`, on normalized span match, not ERRANT.
+- [ ] CI fails the build if over-correction goes up: not wired, since there is no CI yet. `pnpm eval` exits 1 at ≥5% or a rise of more than one sentence over the baseline.
+
+## After Phase 3
+
+Phase 4 is next (voice tutor and pronunciation, see [roadmap.md](./roadmap.md)), and its week 7 starts with vendor tests.
 
 ## Notes
 

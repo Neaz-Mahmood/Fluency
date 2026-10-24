@@ -258,9 +258,7 @@ export function useConversation({
           current.filter((turn) => turn.id !== userTurn.id && turn.id !== assistantId),
         );
         setDraft(content);
-        setError(
-          caught instanceof Error ? caught.message : messages.errors.partnerFailed,
-        );
+        setError(caught instanceof Error ? caught.message : messages.errors.partnerFailed);
       }
       setStatus("idle");
     }
@@ -277,11 +275,7 @@ export function useConversation({
     return true;
   }
 
-  function speakReply(
-    text: string,
-    token: number,
-    latency?: { replyId: string; sentAt: number },
-  ) {
+  function speakReply(text: string, token: number, latency?: { replyId: string; sentAt: number }) {
     if (!isSpeechSynthesisSupported()) {
       setStatus("idle");
       if (canRestartHandsFree()) beginListening(false);
@@ -321,6 +315,17 @@ export function useConversation({
     setInterim("");
     setStatus("idle");
     setTurns((current) => current.filter((turn) => turn.content.trim().length > 0));
+  }
+
+  async function finish(): Promise<string | null> {
+    const sessionId = chatSessionIdRef.current;
+    if (!sessionId) return null;
+    interrupt();
+    const ended = await endConversation(sessionId);
+    setTurns([]);
+    turnsRef.current = [];
+    chatSessionIdRef.current = null;
+    return ended ? sessionId : null;
   }
 
   function reset() {
@@ -375,6 +380,7 @@ export function useConversation({
     voiceReady,
     interrupt,
     reset,
+    finish,
     finishListening,
     onMicPointerDown,
     onMicPointerUp,

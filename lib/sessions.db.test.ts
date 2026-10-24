@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { sessions, sessionTurns } from "@/lib/db/schema";
+import { sessionFeedback, sessions, sessionTurns } from "@/lib/db/schema";
 import { ensureLearnerProfile } from "@/lib/learner";
 import { newLearnerId } from "@/lib/learner-id";
 import {
@@ -12,6 +12,7 @@ import {
   loadTurns,
   recordFirstAudio,
   saveExchange,
+  saveWritingTurn,
   startSession,
 } from "@/lib/sessions";
 import { createTestDb, resetTestDb } from "@/test/db";
@@ -107,9 +108,7 @@ describe("findOpenSession", () => {
       sessionId,
       mode: "placement",
     });
-    expect(
-      await findOpenSession(db, { learnerId, sessionId, scenarioId: "cafe" }),
-    ).toBeNull();
+    expect(await findOpenSession(db, { learnerId, sessionId, scenarioId: "cafe" })).toBeNull();
   });
 
   it("ignores a session that has ended", async () => {
@@ -501,5 +500,52 @@ describe("recordFirstAudio", () => {
       firstAudioMs: 420,
     });
     expect(recorded).toBe(false);
+  });
+});
+
+describe("session_feedback", () => {
+  it("is deleted with its session", async () => {
+    const learnerId = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
+
+    await db.insert(sessionFeedback).values({ sessionId, learnerId });
+
+    await db.delete(sessions).where(eq(sessions.sessionId, sessionId));
+
+    const remaining = await db
+      .select()
+      .from(sessionFeedback)
+      .where(eq(sessionFeedback.sessionId, sessionId));
+    expect(remaining).toEqual([]);
+  });
+});
+
+describe("saveWritingTurn", () => {
+  it("starts a writing session and saves its turn", async () => {
+    const learnerId = await newLearner();
+    const session = await startSession(db, {
+      learnerId,
+      mode: "writing",
+      scenarioId: null,
+    });
+    expect(session).toMatchObject({ learnerId, mode: "writing", scenarioId: null });
+
+    await saveWritingTurn(db, {
+      sessionId: session.sessionId,
+      content: "This is a test paragraph.",
+    });
+
+    expect(await turnsOf(session.sessionId)).toEqual([
+      {
+        position: 0,
+        role: "user",
+        content: "This is a test paragraph.",
+        inputMode: "typed",
+      },
+    ]);
   });
 });

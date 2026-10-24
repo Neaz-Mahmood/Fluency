@@ -4,6 +4,9 @@ import { after } from "next/server";
 
 import { generateText } from "@/lib/ai";
 import { getDb } from "@/lib/db";
+import type { LearnerProfile } from "@/lib/db/schema";
+import { runFeedback } from "@/lib/feedback-job";
+import { markFeedbackPending } from "@/lib/feedback-store";
 import { getLearner, setTutorSummary } from "@/lib/learner";
 import { isUuid } from "@/lib/learner-id";
 import { resolveProvider } from "@/lib/provider";
@@ -17,9 +20,39 @@ import { buildSummaryInput, capSummary, SUMMARY_PROMPT } from "@/lib/summary";
 
 const MAX_FIRST_AUDIO_MS = 120_000;
 
-export async function endConversation(sessionId: unknown): Promise<void> {
+async function buildSummary(learner: LearnerProfile, sessionId: string): Promise<void> {
+  try {
+    const turns = await loadTurns(getDb(), sessionId);
+    const hasUserTurn = turns.some((turn) => turn.role === "user");
+    if (!hasUserTurn) {
+      return;
+    }
+
+    const selected = resolveProvider();
+    if ("error" in selected) {
+      return;
+    }
+
+    const text = await generateText(selected, {
+      model: "feedback",
+      // The feedback model's thinking counts toward this; capSummary bounds the stored note.
+      maxTokens: 1000,
+      system: SUMMARY_PROMPT,
+      messages: [{ role: "user", content: buildSummaryInput(learner, turns) }],
+    });
+
+    const summary = capSummary(text);
+    if (summary) {
+      await setTutorSummary(getDb(), learner.learnerId, summary);
+    }
+  } catch (error) {
+    console.error("Could not build the learner summary.", error);
+  }
+}
+
+export async function endConversation(sessionId: unknown): Promise<boolean> {
   if (!isUuid(sessionId)) {
-    return;
+    return false;
   }
 
   try {
@@ -31,45 +64,26 @@ export async function endConversation(sessionId: unknown): Promise<void> {
       mode: "conversation",
     });
     if (!session) {
-      return;
+      return false;
     }
 
     const ended = await endSession(db, { learnerId: learner.learnerId, sessionId });
     if (!ended) {
-      return;
+      return false;
     }
 
+    await markFeedbackPending(db, { learnerId: learner.learnerId, sessionId });
+
     after(async () => {
-      try {
-        const turns = await loadTurns(getDb(), sessionId);
-        const hasUserTurn = turns.some((turn) => turn.role === "user");
-        if (!hasUserTurn) {
-          return;
-        }
-
-        const selected = resolveProvider();
-        if ("error" in selected) {
-          return;
-        }
-
-        const text = await generateText(selected, {
-          model: "feedback",
-          // The feedback model's thinking counts toward this; capSummary bounds the stored note.
-          maxTokens: 1000,
-          system: SUMMARY_PROMPT,
-          messages: [{ role: "user", content: buildSummaryInput(learner, turns) }],
-        });
-
-        const summary = capSummary(text);
-        if (summary) {
-          await setTutorSummary(getDb(), learner.learnerId, summary);
-        }
-      } catch (error) {
-        console.error("Could not build the learner summary.", error);
-      }
+      await Promise.allSettled([
+        buildSummary(learner, sessionId),
+        runFeedback(learner, sessionId, "conversation"),
+      ]);
     });
+    return true;
   } catch (error) {
     console.error("Could not end the conversation session.", error);
+    return false;
   }
 }
 

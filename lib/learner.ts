@@ -96,3 +96,11 @@ export async function setTutorSummary(db: Db, learnerId: string, summary: string
     .set({ compactTutorSummary: summary })
     .where(eq(learnerProfiles.learnerId, learnerId));
 }
+
+// Records or withdraws consent to send live voice to the speech services.
+export async function setVoiceConsent(db: Db, learnerId: string, given: boolean): Promise<void> {
+  await db
+    .update(learnerProfiles)
+    .set({ voiceConsentAt: given ? new Date() : null })
+    .where(eq(learnerProfiles.learnerId, learnerId));
+}

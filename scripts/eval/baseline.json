@@ -1,0 +1,11 @@
+{
+  "model": "claude-opus-5-5",
+  "measuredAt": "2026-10-22",
+  "sentences": 200,
+  "errorFree": 100,
+  "overCorrected": 0,
+  "overCorrectionRate": 0,
+  "precision": 0.9587628865979382,
+  "recall": 0.93,
+  "f05": 0.9528688524590164
+}

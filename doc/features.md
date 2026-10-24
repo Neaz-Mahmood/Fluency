@@ -12,21 +12,27 @@ Fluency is a voice-first practice partner for spoken English. You pick a scenari
 - **Bangla UI strings** — message dictionary providing Bangla UI strings for the home page, scenario picker, practice controls, transcripts, and client error messages when the learner's native language is `bn-BD`.
 - **Latency logging** — server time to first token and client time to first audio are saved on every assistant turn in `session_turns`.
 - **Evaluation harness** — `pnpm eval` scores a corrector against a golden set of Bangla-speaker sentences and reports over-correction.
-- **Learner-aware prompt and summary** — the system prompt adapts to the learner's CEFR level and native language, and includes a short note about them that is rebuilt when they press "Switch scenario".
+- **Learner-aware prompt and summary** — the system prompt adapts to the learner's CEFR level and native language, and includes a short note about them that is rebuilt when a session ends ("Finish and get feedback" or "Switch scenario").
+- **Post-session feedback and recap** — precision-first grammar corrections, fluency upgrades, explanations, and vocabulary items shown in a recap at `/history/[sessionId]`.
+- **Flashcards and review** — corrections and vocabulary saved as cards from the recap, scheduled with FSRS and reviewed at `/review` with fresh AI cloze sentences.
+- **Writing coach** — paragraphs and emails up to 2,000 characters submitted at `/write` and evaluated sentence by sentence with the same recap.
 
 ## Feature pages
 
-| Area | Page |
-| --- | --- |
-| Scenario picker | [scenarios.md](./scenarios.md) |
-| Hold-to-talk microphone | [voice-input.md](./voice-input.md) |
-| Typed fallback | [typed-input.md](./typed-input.md) |
-| Conversation lifecycle and status | [conversation.md](./conversation.md) |
-| `POST /api/chat` | [api.md](./api.md) |
-| AI provider selection and streaming | [ai-providers.md](./ai-providers.md) |
-| Spoken replies (TTS) | [spoken-replies.md](./spoken-replies.md) |
-| Placement chat | [placement.md](./placement.md) |
-| Evaluation harness | [evaluation.md](./evaluation.md) |
+| Area                                | Page                                     |
+| ----------------------------------- | ---------------------------------------- |
+| Scenario picker                     | [scenarios.md](./scenarios.md)           |
+| Hold-to-talk microphone             | [voice-input.md](./voice-input.md)       |
+| Typed fallback                      | [typed-input.md](./typed-input.md)       |
+| Conversation lifecycle and status   | [conversation.md](./conversation.md)     |
+| `POST /api/chat`                    | [api.md](./api.md)                       |
+| AI provider selection and streaming | [ai-providers.md](./ai-providers.md)     |
+| Spoken replies (TTS)                | [spoken-replies.md](./spoken-replies.md) |
+| Placement chat                      | [placement.md](./placement.md)           |
+| Post-session feedback and recap     | [feedback.md](./feedback.md)             |
+| Flashcards and review               | [flashcards.md](./flashcards.md)         |
+| Writing coach                       | [writing.md](./writing.md)               |
+| Evaluation harness                  | [evaluation.md](./evaluation.md)         |
 
 ## App shell
 
@@ -34,4 +40,4 @@ The home page (`app/page.tsx`) introduces the app, lays out a three-step explain
 
 ## What is not in this build
 
-Accounts (sign-in), the post-conversation feedback pass and Spanish are later phases. See [out-of-scope.md](./out-of-scope.md) for the full list.
+Accounts (sign-in), pronunciation drills and Spanish are later phases. See [out-of-scope.md](./out-of-scope.md) for the full list.

@@ -5,7 +5,9 @@ The following are intentionally not in this build. They are listed here so revie
 ## Not in this build
 
 - **Accounts** — there is no signup or sign-in. Each browser is an anonymous learner identified by a cookie, and the chat route is open.
-- **Post-conversation feedback pass** — there is no grammar correction or vocabulary review at the end of a session. The `claude-opus-5-5` feedback model is used by placement (FLU-30) and the learner summary (FLU-31).
+- **Pronunciation feedback and drills** — pronunciation scoring and phoneme-level drills come in Phase 4.
+- **CI for the eval** — `pnpm eval` runs locally and enforces gates with exit code 1, but continuous integration is not set up.
+- **Per-learner FSRS weight optimization** — flashcard review uses default FSRS-6 parameters; personalized weight optimization comes after the MVP.
 - **Per-user provider overrides** — provider selection is driven entirely by server-side env vars.
 - **Voice and rate controls** — the spoken reply is hard-coded to `en-US` at `rate: 0.96`.
 - **Custom scenarios** — the four scenarios in `lib/scenarios.ts` are the only options.

@@ -19,6 +19,8 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+import type { FeedbackItem, VocabularyItem } from "../feedback";
+
 // Learner model and FSRS schema. Based on the research schema, with the changes in
 // doc/roadmap.md (Phase 2): nullable user_id for login, sessions/turns, and voice_usage.
 
@@ -37,9 +39,10 @@ export const cardType = pgEnum("card_type", [
   "PRONUNCIATION_DRILL",
 ]);
 export const answerMode = pgEnum("answer_mode", ["typed", "spoken"]);
-export const sessionMode = pgEnum("session_mode", ["conversation", "placement"]);
+export const sessionMode = pgEnum("session_mode", ["conversation", "placement", "writing"]);
 export const turnRole = pgEnum("turn_role", ["user", "assistant"]);
 export const inputMode = pgEnum("input_mode", ["voice", "typed"]);
+export const feedbackStatus = pgEnum("feedback_status", ["pending", "done", "failed"]);
 
 export type FsrsParameters = {
   request_retention: number;
@@ -96,6 +99,8 @@ export const learnerProfiles = pgTable(
       .default(DEFAULT_FSRS_PARAMETERS),
     // Under 250 tokens; rebuilt after each session and injected into the system prompt.
     compactTutorSummary: text("compact_tutor_summary").notNull().default(""),
+    // Set when the learner opts in to live voice; null means no consent. Recordings are never stored.
+    voiceConsentAt: timestamp("voice_consent_at", { withTimezone: true }),
     ...timestamps,
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -168,6 +173,8 @@ export const fsrsCards = pgTable(
     index("idx_fsrs_cards_due")
       .on(table.learnerId, table.due)
       .where(sql`${table.state} <> 'New'`),
+    // Saving the same item twice keeps one card.
+    unique().on(table.learnerId, table.cardType, table.targetItem),
   ],
 );
 
@@ -235,7 +242,30 @@ export const sessionTurns = pgTable(
   (table) => [unique().on(table.sessionId, table.position)],
 );
 
-// 6. Daily voice usage for the quota. Replaces daily_free_voice_seconds_used,
+// Feedback item tied to the learner turn it came from.
+export type StoredFeedbackItem = FeedbackItem & {
+  turnId: string;
+  original: string; // the learner's line as sent to the model
+  inputMode: "voice" | "typed" | null;
+};
+
+// 7. Post-session feedback: corrections and vocabulary generated after a session.
+export const sessionFeedback = pgTable("session_feedback", {
+  sessionId: uuid("session_id")
+    .primaryKey()
+    .references(() => sessions.sessionId, { onDelete: "cascade" }),
+  learnerId: learnerRef(),
+  status: feedbackStatus("status").notNull().default("pending"),
+  items: jsonb("items").$type<StoredFeedbackItem[]>().notNull().default([]),
+  vocabulary: jsonb("vocabulary").$type<VocabularyItem[]>().notNull().default([]),
+  ...timestamps,
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// 8. Daily voice usage for the quota. Replaces daily_free_voice_seconds_used,
 // which had no reset date.
 export const voiceUsage = pgTable(
   "voice_usage",
@@ -254,4 +284,5 @@ export type LearnerProfile = typeof learnerProfiles.$inferSelect;
 export type NewLearnerProfile = typeof learnerProfiles.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type SessionTurn = typeof sessionTurns.$inferSelect;
+export type SessionFeedback = typeof sessionFeedback.$inferSelect;
 export type FsrsCard = typeof fsrsCards.$inferSelect;

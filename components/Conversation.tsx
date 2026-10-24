@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { ConversationControls } from "@/components/ConversationControls";
@@ -17,6 +18,8 @@ export function Conversation({
   saved: SavedConversation | null;
   messages: Messages;
 }) {
+  const router = useRouter();
+  const [finishing, setFinishing] = useState(false);
   const [scenarioId, setScenarioId] = useState<ScenarioId | null>(saved?.scenarioId ?? null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
 
@@ -57,17 +60,39 @@ export function Conversation({
             {messages.scenarios[scenarioId].title}
           </h1>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="rounded text-xs"
-          onClick={() => {
-            conversation.reset();
-            setScenarioId(null);
-          }}
-        >
-          {messages.practice.switchScenario}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded text-xs"
+            onClick={() => {
+              conversation.reset();
+              setScenarioId(null);
+            }}
+          >
+            {messages.practice.switchScenario}
+          </Button>
+          {turns.length > 0 ? (
+            <Button
+              variant="default"
+              size="sm"
+              className="rounded text-xs"
+              disabled={finishing || status === "thinking"}
+              onClick={async () => {
+                setFinishing(true);
+                const id = await conversation.finish();
+                if (id) {
+                  router.push(`/history/${id}`);
+                } else {
+                  setFinishing(false);
+                  setScenarioId(null);
+                }
+              }}
+            >
+              {finishing ? messages.practice.finishing : messages.practice.finish}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Transcript Box (Level 0/Subtle) */}
