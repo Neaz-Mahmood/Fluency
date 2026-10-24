@@ -87,10 +87,11 @@ Talk to Fluency with replies under a second, and get pronunciation feedback afte
 
 ### Week 7 first: tests before building
 
-- **Text-to-speech A/B test** on our own English sentences and mixed English–Spanish sentences: Cartesia Sonic-3, Gradium, Deepgram Aura-2. Measure perceived time to first audio, including leading silence, plus pronunciation quality and cost.
+- **Text-to-speech A/B test** on our own English sentences and mixed English–Spanish sentences: Cartesia Sonic-3, Gradium, Deepgram Aura-2 (through LiveKit Inference). Measure perceived time to first audio, including leading silence, plus pronunciation quality and cost.
 - **Live model time to first token**: compare `claude-haiku-5-5` with the current Gemini Flash model. Check current prices; don't reuse the research figures.
 - **Azure pronunciation assessment language check**: confirm which features (prosody, content scoring) work for `en-US` unscripted speech. The MVP only needs `en-US`, but write the result down for en → es later.
-- **Choose the voice path.** If building solo: LiveKit Cloud with the Deepgram Voice Agent API. If two or more engineers: our own agent in the worker (Deepgram Flux speech-to-text → fast model → the text-to-speech vendor chosen above).
+- **Choose the voice path.** Our own agent in a LiveKit Agents worker: Deepgram Flux speech-to-text through LiveKit Inference → fast model → the text-to-speech vendor chosen above. LiveKit Inference runs the Deepgram models with the LiveKit key, so there's no Deepgram account; the Deepgram Voice Agent API is out because it needs one. Speech-to-text fallbacks: AssemblyAI Universal-Streaming or Cartesia Ink.
+- **The live model must fit the latency budget.** Claude runs through OpenCode (there's no direct Anthropic key), and the proxy hop alone puts Haiku's time to first token over 750 ms. Compare Gemini Flash and LiveKit Inference models as well.
 
 ### Engineering
 
@@ -176,7 +177,7 @@ These are choices the plan doesn't make. Each one needs an owner before the phas
 | Postgres host and database library (ORM or migration tool) | Any managed option that works with Next.js | Phase 2, week 1 |
 | Auth library (must support email/password, Google and the chosen database) | Chosen when Phase 5 login starts | Phase 5, week 12 |
 | Transactional email service (verification and password reset) | Chosen with the auth library | Phase 5, week 12 |
-| Team size, which sets the voice path | Solo path (LiveKit Cloud + Deepgram Voice Agent) | Phase 4, week 7 |
+| Voice path | LiveKit Agents worker, Deepgram Flux through LiveKit Inference (no Deepgram account) | Phase 4, week 7 |
 | Text-to-speech vendor | Decided by the week 7 A/B test | Phase 4, week 7 |
 
 ## Notes
