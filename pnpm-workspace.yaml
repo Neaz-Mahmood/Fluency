@@ -1,4 +1,6 @@
 allowBuilds:
+  '@livekit/blingfire': false
+  '@livekit/local-inference': false
   esbuild: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
