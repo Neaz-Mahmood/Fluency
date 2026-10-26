@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createLatencyTracker,
   liveEndMessage,
   liveStatus,
   remainingFromAttributes,
   REMAINING_SECONDS_ATTRIBUTE,
+  rmsDbfs,
   sessionIdFromAttributes,
   SESSION_ID_ATTRIBUTE,
   transcriptUpdate,
@@ -184,5 +186,139 @@ describe("liveEndMessage", () => {
     expect(liveEndMessage("consent", en.liveVoice)).toBe(en.liveVoice.consentWithdrawn);
     expect(liveEndMessage(null, en.liveVoice)).toBe(en.liveVoice.dropped);
     expect(liveEndMessage("unknown-reason", en.liveVoice)).toBe(en.liveVoice.dropped);
+  });
+});
+
+describe("rmsDbfs", () => {
+  it("returns -100 for zeros", () => {
+    expect(rmsDbfs(new Float32Array(512))).toBe(-100);
+  });
+
+  it("returns about -6.02 for a constant 0.5", () => {
+    const samples = new Float32Array(512).fill(0.5);
+    expect(rmsDbfs(samples)).toBeCloseTo(-6.02, 2);
+  });
+
+  it("returns -100 for an empty array", () => {
+    expect(rmsDbfs(new Float32Array([]))).toBe(-100);
+  });
+});
+
+describe("createLatencyTracker", () => {
+  it("measures a normal reply from speech end to first audible agent audio", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) {
+      expect(tracker.tick(t, -30, -60)).toBeNull();
+    }
+    for (let t = 1010; t < 1200; t += 10) {
+      expect(tracker.tick(t, -60, -60)).toBeNull();
+    }
+    tracker.agentState("thinking");
+    for (let t = 1200; t < 1700; t += 10) {
+      expect(tracker.tick(t, -60, -60)).toBeNull();
+    }
+    expect(tracker.tick(1700, -60, -40)).toBe(700);
+    for (let t = 1710; t <= 2000; t += 10) {
+      expect(tracker.tick(t, -60, -40)).toBeNull();
+    }
+  });
+
+  it("does not count a pause inside a reply as a second reply", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    for (let t = 1010; t < 1200; t += 10) tracker.tick(t, -60, -60);
+    tracker.agentState("thinking");
+    for (let t = 1200; t < 1700; t += 10) tracker.tick(t, -60, -60);
+    expect(tracker.tick(1700, -60, -40)).toBe(700);
+
+    for (let t = 1710; t < 2000; t += 10) tracker.tick(t, -60, -40);
+    // agent quiet from 2000
+    for (let t = 2000; t < 2300; t += 10) tracker.tick(t, -60, -60);
+    // agent audible again at 2300, still thinking/speaking
+    tracker.agentState("speaking");
+    expect(tracker.tick(2300, -60, -40)).toBeNull();
+  });
+
+  it("returns null if audio starts with no thinking or speaking state", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    for (let t = 1010; t < 1700; t += 10) tracker.tick(t, -60, -60);
+    expect(tracker.tick(1700, -60, -40)).toBeNull();
+  });
+
+  it("measures a reply that goes straight from listening to speaking", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    for (let t = 1010; t < 1600; t += 10) tracker.tick(t, -60, -60);
+    tracker.agentState("speaking");
+    tracker.tick(1600, -60, -60);
+    expect(tracker.tick(1610, -60, -40)).toBe(610);
+  });
+
+  it("returns null if speaking arrives after the reply is already audible", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    for (let t = 1010; t < 1500; t += 10) tracker.tick(t, -60, -60);
+    tracker.tick(1500, -60, -40);
+    tracker.agentState("speaking");
+    tracker.tick(1510, -60, -60);
+    expect(tracker.tick(1520, -60, -40)).toBeNull();
+  });
+
+  it("returns null if thinking arrives while agent is already audible", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    for (let t = 1010; t < 1500; t += 10) tracker.tick(t, -60, -60);
+    tracker.tick(1500, -60, -40);
+    tracker.agentState("thinking");
+    expect(tracker.tick(1510, -60, -40)).toBeNull();
+  });
+
+  it("returns null if thinking returns to listening before audio starts (cancelled reply)", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    tracker.agentState("thinking");
+    tracker.tick(1200, -60, -60);
+    tracker.agentState("listening");
+    for (let t = 1210; t < 1700; t += 10) tracker.tick(t, -60, -60);
+    expect(tracker.tick(1700, -60, -40)).toBeNull();
+  });
+
+  it("returns null when there is a tick gap > 100 ms between speech and reply", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    // 500 ms gap to t=1500
+    tracker.tick(1500, -60, -60);
+    tracker.agentState("thinking");
+    for (let t = 1510; t < 1700; t += 10) tracker.tick(t, -60, -60);
+    expect(tracker.tick(1700, -60, -40)).toBeNull();
+  });
+
+  it("returns null if mic is still loud at onset tick (noise/overlap < 100 ms)", () => {
+    const tracker = createLatencyTracker();
+    for (let t = 0; t < 1200; t += 10) tracker.tick(t, -60, -60);
+    tracker.agentState("thinking");
+    for (let t = 1200; t < 1700; t += 10) tracker.tick(t, -60, -60);
+    expect(tracker.tick(1700, -30, -40)).toBeNull();
+  });
+
+  it("measures a second normal turn after the first", () => {
+    const tracker = createLatencyTracker();
+    // Turn 1
+    for (let t = 0; t <= 1000; t += 10) tracker.tick(t, -30, -60);
+    tracker.agentState("thinking");
+    for (let t = 1010; t < 1700; t += 10) tracker.tick(t, -60, -60);
+    expect(tracker.tick(1700, -60, -40)).toBe(700);
+
+    for (let t = 1710; t < 2200; t += 10) tracker.tick(t, -60, -40);
+    for (let t = 2200; t < 2500; t += 10) tracker.tick(t, -60, -60);
+    tracker.agentState("listening");
+
+    // Turn 2
+    for (let t = 2500; t <= 3000; t += 10) tracker.tick(t, -30, -60);
+    for (let t = 3010; t < 3200; t += 10) tracker.tick(t, -60, -60);
+    tracker.agentState("thinking");
+    for (let t = 3200; t < 3700; t += 10) tracker.tick(t, -60, -60);
+    expect(tracker.tick(3700, -60, -40)).toBe(700);
   });
 });

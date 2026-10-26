@@ -14,6 +14,7 @@ import { getDb } from "@/lib/db";
 import {
   END_REASON_ATTRIBUTE,
   REMAINING_SECONDS_ATTRIBUTE,
+  REPLY_TURN_ID_ATTRIBUTE,
   SESSION_ID_ATTRIBUTE,
 } from "@/lib/live-voice";
 import { saveExchange, startSession } from "@/lib/sessions";
@@ -94,14 +95,19 @@ export default defineAgent({
             ?.setAttributes({ [SESSION_ID_ATTRIBUTE]: sessionId })
             .catch((error: unknown) => console.error("Could not announce the session id:", error));
         }
+        const replyTurnId = crypto.randomUUID();
         await saveExchange(db, {
           sessionId,
           userText: exchange.userText,
           inputMode: "voice",
           replyText: exchange.replyText,
-          replyTurnId: crypto.randomUUID(),
+          replyTurnId,
           firstTokenMs: exchange.firstTokenMs ?? 0,
         });
+        // Lets the browser attach its latency measurement to this reply (hooks/useLiveVoice.ts).
+        ctx.room.localParticipant
+          ?.setAttributes({ [REPLY_TURN_ID_ATTRIBUTE]: replyTurnId })
+          .catch((error: unknown) => console.error("Could not announce the reply turn id:", error));
       } catch (error) {
         console.error("Could not save exchange:", error);
       }

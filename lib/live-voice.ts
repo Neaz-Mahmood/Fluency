@@ -85,3 +85,101 @@ export function liveEndMessage(reason: string | null, messages: Messages["liveVo
   }
   return messages.dropped;
 }
+
+// Set by the worker on its own participant after each saved exchange (worker/main.ts).
+export const REPLY_TURN_ID_ATTRIBUTE = "fluency.reply_turn_id";
+
+// The browser samples the mic and the agent's audio this often (hooks/useLiveVoice.ts).
+export const LATENCY_TICK_MS = 10;
+// Mic RMS above this is the learner speaking. With the browser's noise suppression, a quiet room
+// sits far below it.
+export const MIC_SPEECH_DBFS = -45;
+// Agent audio RMS above this is the reply being heard. TTS silence is near digital zero.
+export const AGENT_AUDIO_DBFS = -50;
+// Ticks further apart than this mean the tab was throttled (hidden), so that turn isn't timed.
+export const MAX_TICK_GAP_MS = 100;
+// Below this, the mic was still picking up sound when the reply started (noise or overlap),
+// so the number isn't a real latency.
+export const MIN_LIVE_LATENCY_MS = 100;
+export const MAX_LIVE_LATENCY_MS = 30_000;
+
+// RMS level of one analyser frame in dBFS, floored at -100 (silence).
+export function rmsDbfs(samples: Float32Array): number {
+  if (samples.length === 0) {
+    return -100;
+  }
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    sum += s * s;
+  }
+  const mean = sum / samples.length;
+  if (mean <= 0) {
+    return -100;
+  }
+  const dbfs = 20 * Math.log10(Math.sqrt(mean));
+  if (!Number.isFinite(dbfs) || dbfs <= -100) {
+    return -100;
+  }
+  return dbfs;
+}
+
+export type LatencyTracker = {
+  // Feed one tick. Returns a latency in ms on the tick a reply becomes audible, otherwise null.
+  tick(nowMs: number, micDbfs: number, agentDbfs: number): number | null;
+  // Feed every lk.agent.state change.
+  agentState(state: string): void;
+};
+
+export function createLatencyTracker(): LatencyTracker {
+  let lastTickMs: number | null = null;
+  let lastMicSpeechMs: number | null = null;
+  let armed = false;
+  let agentAudible = false;
+  let lastState: string | null = null;
+
+  return {
+    agentState(state: string): void {
+      // A reply starts when the state leaves listening. That is usually "thinking", but a reply
+      // prepared during the learner's turn can go straight to "speaking", or both states can
+      // arrive in one attribute update.
+      const startsReply =
+        state === "thinking" ||
+        (state === "speaking" && lastState !== "thinking" && lastState !== "speaking");
+      lastState = state;
+      if (startsReply) {
+        armed = !agentAudible;
+      } else if (state === "listening") {
+        armed = false;
+      }
+    },
+
+    tick(nowMs: number, micDbfs: number, agentDbfs: number): number | null {
+      if (lastTickMs !== null && nowMs - lastTickMs > MAX_TICK_GAP_MS) {
+        lastMicSpeechMs = null;
+        armed = false;
+      }
+      lastTickMs = nowMs;
+
+      if (micDbfs > MIC_SPEECH_DBFS) {
+        lastMicSpeechMs = nowMs;
+      }
+
+      const audible = agentDbfs > AGENT_AUDIO_DBFS;
+      let result: number | null = null;
+
+      if (audible && !agentAudible && armed) {
+        armed = false;
+        if (lastMicSpeechMs !== null) {
+          const ms = Math.round(nowMs - lastMicSpeechMs);
+          if (ms >= MIN_LIVE_LATENCY_MS && ms <= MAX_LIVE_LATENCY_MS) {
+            result = ms;
+          }
+        }
+      }
+
+      agentAudible = audible;
+      return result;
+    },
+  };
+}

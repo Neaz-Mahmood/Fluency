@@ -11,6 +11,7 @@ import {
   listSessions,
   loadTurns,
   recordFirstAudio,
+  recordSpeechEndToAudio,
   saveExchange,
   saveWritingTurn,
   startSession,
@@ -498,6 +499,83 @@ describe("recordFirstAudio", () => {
       learnerId,
       turnId: crypto.randomUUID(),
       firstAudioMs: 420,
+    });
+    expect(recorded).toBe(false);
+  });
+});
+
+describe("recordSpeechEndToAudio", () => {
+  it("sets speechEndToAudioMs for the owner of the session", async () => {
+    const owner = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
+    const replyTurnId = crypto.randomUUID();
+
+    await saveExchange(db, {
+      sessionId,
+      userText: "Hi",
+      inputMode: "voice",
+      replyText: "Hello!",
+      replyTurnId,
+      firstTokenMs: 150,
+    });
+
+    const recorded = await recordSpeechEndToAudio(db, {
+      learnerId: owner,
+      turnId: replyTurnId,
+      speechEndToAudioMs: 580,
+    });
+    expect(recorded).toBe(true);
+
+    const [assistantTurn] = await db
+      .select({ speechEndToAudioMs: sessionTurns.speechEndToAudioMs })
+      .from(sessionTurns)
+      .where(eq(sessionTurns.turnId, replyTurnId));
+    expect(assistantTurn?.speechEndToAudioMs).toBe(580);
+  });
+
+  it("returns false and changes nothing for another learner", async () => {
+    const owner = await newLearner();
+    const other = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId: owner,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
+    const replyTurnId = crypto.randomUUID();
+
+    await saveExchange(db, {
+      sessionId,
+      userText: "Hi",
+      inputMode: "voice",
+      replyText: "Hello!",
+      replyTurnId,
+      firstTokenMs: 150,
+    });
+
+    const recorded = await recordSpeechEndToAudio(db, {
+      learnerId: other,
+      turnId: replyTurnId,
+      speechEndToAudioMs: 580,
+    });
+    expect(recorded).toBe(false);
+
+    const [assistantTurn] = await db
+      .select({ speechEndToAudioMs: sessionTurns.speechEndToAudioMs })
+      .from(sessionTurns)
+      .where(eq(sessionTurns.turnId, replyTurnId));
+    expect(assistantTurn?.speechEndToAudioMs).toBeNull();
+  });
+
+  it("returns false for an unknown turn id", async () => {
+    const learnerId = await newLearner();
+    const recorded = await recordSpeechEndToAudio(db, {
+      learnerId,
+      turnId: crypto.randomUUID(),
+      speechEndToAudioMs: 580,
     });
     expect(recorded).toBe(false);
   });

@@ -15,7 +15,9 @@ import {
   findOpenSession,
   loadTurns,
   recordFirstAudio as persistFirstAudio,
+  recordSpeechEndToAudio,
 } from "@/lib/sessions";
+import { MAX_LIVE_LATENCY_MS } from "@/lib/live-voice";
 import { buildSummaryInput, capSummary, SUMMARY_PROMPT } from "@/lib/summary";
 
 const MAX_FIRST_AUDIO_MS = 120_000;
@@ -116,5 +118,31 @@ export async function recordFirstAudio(turnId: unknown, firstAudioMs: unknown): 
     }
   } catch (error) {
     console.error("Could not record first audio latency.", error);
+  }
+}
+
+export async function recordLiveVoiceLatency(
+  turnId: unknown,
+  speechEndToAudioMs: unknown,
+): Promise<void> {
+  if (
+    !isUuid(turnId) ||
+    typeof speechEndToAudioMs !== "number" ||
+    !Number.isInteger(speechEndToAudioMs) ||
+    speechEndToAudioMs < 0 ||
+    speechEndToAudioMs > MAX_LIVE_LATENCY_MS
+  ) {
+    return;
+  }
+
+  try {
+    const learner = await getLearner();
+    await recordSpeechEndToAudio(getDb(), {
+      learnerId: learner.learnerId,
+      turnId,
+      speechEndToAudioMs,
+    });
+  } catch (error) {
+    console.error("Could not record live voice latency.", error);
   }
 }

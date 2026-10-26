@@ -178,28 +178,50 @@ export async function saveExchange(
   });
 }
 
-// Records the client-measured time to speech start for an assistant turn, only if the
-// session belongs to the current learner.
-export async function recordFirstAudio(
+async function updateAssistantTurn(
   db: Db,
-  options: { learnerId: string; turnId: string; firstAudioMs: number },
+  learnerId: string,
+  turnId: string,
+  values: { firstAudioMs?: number | null; speechEndToAudioMs?: number | null },
 ): Promise<boolean> {
   const updated = await db
     .update(sessionTurns)
-    .set({ firstAudioMs: options.firstAudioMs })
+    .set(values)
     .where(
       and(
-        eq(sessionTurns.turnId, options.turnId),
+        eq(sessionTurns.turnId, turnId),
         eq(sessionTurns.role, "assistant"),
         inArray(
           sessionTurns.sessionId,
           db
             .select({ id: sessions.sessionId })
             .from(sessions)
-            .where(eq(sessions.learnerId, options.learnerId)),
+            .where(eq(sessions.learnerId, learnerId)),
         ),
       ),
     )
     .returning({ turnId: sessionTurns.turnId });
   return updated.length > 0;
+}
+
+// Records the client-measured time to speech start for an assistant turn, only if the
+// session belongs to the current learner.
+export async function recordFirstAudio(
+  db: Db,
+  options: { learnerId: string; turnId: string; firstAudioMs: number },
+): Promise<boolean> {
+  return updateAssistantTurn(db, options.learnerId, options.turnId, {
+    firstAudioMs: options.firstAudioMs,
+  });
+}
+
+// Records the browser-measured live voice latency for an assistant turn, only if the
+// session belongs to the current learner.
+export async function recordSpeechEndToAudio(
+  db: Db,
+  options: { learnerId: string; turnId: string; speechEndToAudioMs: number },
+): Promise<boolean> {
+  return updateAssistantTurn(db, options.learnerId, options.turnId, {
+    speechEndToAudioMs: options.speechEndToAudioMs,
+  });
 }

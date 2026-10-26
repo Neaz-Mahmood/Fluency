@@ -3,15 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { Turn } from "@/hooks/useConversation";
+import { recordLiveVoiceLatency } from "@/app/practice/actions";
 import {
   AGENT_STATE_ATTRIBUTE,
+  createLatencyTracker,
   END_REASON_ATTRIBUTE,
+  LATENCY_TICK_MS,
   liveEndMessage,
   liveStatus,
   remainingFromAttributes,
+  REPLY_TURN_ID_ATTRIBUTE,
+  rmsDbfs,
   sessionIdFromAttributes,
   TRANSCRIPTION_TOPIC,
   transcriptUpdate,
+  type LatencyTracker,
   type LiveVoiceStatus,
 } from "@/lib/live-voice";
 import type { Messages } from "@/lib/messages";
@@ -52,6 +58,13 @@ export function useLiveVoice(options: {
   const attachedElementsRef = useRef<Set<HTMLMediaElement>>(new Set());
   const joinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const agentAnalyserRef = useRef<AnalyserNode | null>(null);
+  const latencyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const trackerRef = useRef<LatencyTracker | null>(null);
+  const pendingLatencyRef = useRef<number | null>(null);
+
   useEffect(() => {
     onTurnRef.current = options.onTurn;
   }, [options.onTurn]);
@@ -64,12 +77,42 @@ export function useLiveVoice(options: {
     messagesRef.current = options.messages;
   }, [options.messages]);
 
+  function closeAudio() {
+    if (latencyTimerRef.current !== null) {
+      clearInterval(latencyTimerRef.current);
+      latencyTimerRef.current = null;
+    }
+    micAnalyserRef.current = null;
+    agentAnalyserRef.current = null;
+    trackerRef.current = null;
+    pendingLatencyRef.current = null;
+    const ctx = audioContextRef.current;
+    audioContextRef.current = null;
+    if (ctx) {
+      void ctx.close().catch(() => {});
+    }
+  }
+
+  function analyse(track: MediaStreamTrack): AnalyserNode | null {
+    const ctx = audioContextRef.current;
+    if (!ctx) {
+      return null;
+    }
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    const source = ctx.createMediaStreamSource(new MediaStream([track]));
+    source.connect(analyser);
+    return analyser;
+  }
+
   // Safe to call twice. Resolves once the room has disconnected.
   function cleanup(errorMessage: string | null): Promise<void> {
     if (joinTimerRef.current) {
       clearTimeout(joinTimerRef.current);
       joinTimerRef.current = null;
     }
+
+    closeAudio();
 
     // Listeners go first, so this room's late events can't clean up a newer session.
     const currentRoom = roomRef.current;
@@ -95,6 +138,8 @@ export function useLiveVoice(options: {
     return () => {
       void cleanup(null);
     };
+    // cleanup and closeAudio touch only refs and state setters, so the mount-time copy is correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function start(target: {
@@ -111,6 +156,11 @@ export function useLiveVoice(options: {
     setInterim("");
     endReasonRef.current = null;
 
+    audioContextRef.current = new AudioContext();
+    void audioContextRef.current.resume().catch(() => {});
+    trackerRef.current = createLatencyTracker();
+    pendingLatencyRef.current = null;
+
     let response: Response;
     try {
       response = await fetch("/api/voice/token", {
@@ -119,6 +169,7 @@ export function useLiveVoice(options: {
         body: JSON.stringify(target),
       });
     } catch {
+      closeAudio();
       statusRef.current = "off";
       setStatus("off");
       setError(messagesRef.current.liveVoice.unavailable);
@@ -130,6 +181,7 @@ export function useLiveVoice(options: {
         error?: string;
         code?: string;
       } | null;
+      closeAudio();
       statusRef.current = "off";
       setStatus("off");
       if (payload?.code === "consent") {
@@ -157,6 +209,7 @@ export function useLiveVoice(options: {
         setRemainingSeconds(data.remainingSeconds);
       }
     } catch {
+      closeAudio();
       statusRef.current = "off";
       setStatus("off");
       setError(messagesRef.current.liveVoice.unavailable);
@@ -165,7 +218,10 @@ export function useLiveVoice(options: {
 
     const { Room, RoomEvent, ParticipantKind, Track } = await import("livekit-client");
     // stop() while connecting sets the status back to off.
-    if (statusRef.current !== "connecting") return "failed";
+    if (statusRef.current !== "connecting") {
+      closeAudio();
+      return "failed";
+    }
     const room = new Room();
     // False once stop() or a failure has cleaned this room up.
     const current = () => roomRef.current === room;
@@ -210,7 +266,16 @@ export function useLiveVoice(options: {
 
     let agentJoined = false;
     function followAgent(attributes: Record<string, string>) {
-      const nextStatus = liveStatus(attributes[AGENT_STATE_ATTRIBUTE]);
+      const agentState = attributes[AGENT_STATE_ATTRIBUTE];
+      if (typeof agentState === "string") {
+        trackerRef.current?.agentState(agentState);
+      }
+      const replyTurnId = attributes[REPLY_TURN_ID_ATTRIBUTE];
+      if (typeof replyTurnId === "string" && pendingLatencyRef.current !== null) {
+        void recordLiveVoiceLatency(replyTurnId, pendingLatencyRef.current);
+        pendingLatencyRef.current = null;
+      }
+      const nextStatus = liveStatus(agentState);
       if (nextStatus !== null) {
         statusRef.current = nextStatus;
         setStatus(nextStatus);
@@ -245,6 +310,7 @@ export function useLiveVoice(options: {
         const element = track.attach();
         attachedElementsRef.current.add(element);
         document.body.appendChild(element);
+        agentAnalyserRef.current = analyse(track.mediaStreamTrack);
       }
     });
 
@@ -296,6 +362,33 @@ export function useLiveVoice(options: {
       return "failed";
     }
     if (!current()) return "failed";
+
+    const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track
+      ?.mediaStreamTrack;
+    if (micTrack) {
+      micAnalyserRef.current = analyse(micTrack);
+    }
+
+    const micBuffer = new Float32Array(512);
+    const agentBuffer = new Float32Array(512);
+    latencyTimerRef.current = setInterval(() => {
+      let micDbfs = -100;
+      if (micAnalyserRef.current) {
+        micAnalyserRef.current.getFloatTimeDomainData(micBuffer);
+        micDbfs = rmsDbfs(micBuffer);
+      }
+      let agentDbfs = -100;
+      if (agentAnalyserRef.current) {
+        agentAnalyserRef.current.getFloatTimeDomainData(agentBuffer);
+        agentDbfs = rmsDbfs(agentBuffer);
+      }
+      const ms = trackerRef.current?.tick(performance.now(), micDbfs, agentDbfs);
+      // Once an end reason is set, the next audio is the quota goodbye, not a reply.
+      if (typeof ms === "number" && endReasonRef.current === null) {
+        pendingLatencyRef.current = ms;
+        console.info(`[voice] speech end → first audio: ${ms} ms`);
+      }
+    }, LATENCY_TICK_MS);
 
     // The agent may have joined before connect returned.
     for (const participant of room.remoteParticipants.values()) {

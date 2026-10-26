@@ -234,9 +234,11 @@ export const sessionTurns = pgTable(
     content: text("content").notNull(),
     // How the learner produced a user turn; null for assistant turns.
     inputMode: inputMode("input_mode"),
-    // Latency for assistant turns: server time to first token, client time to first audio.
+    // Latency for assistant turns: server time to first token, client time to first audio (Web Speech).
     firstTokenMs: integer("first_token_ms"),
     firstAudioMs: integer("first_audio_ms"),
+    // Live voice replies only: browser time from the end of the learner's speech to the first reply audio.
+    speechEndToAudioMs: integer("speech_end_to_audio_ms"),
     ...timestamps,
   },
   (table) => [unique().on(table.sessionId, table.position)],

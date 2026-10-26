@@ -13,6 +13,7 @@ The voice worker is Fluency's live voice tutor backend. When a learner starts a 
 - `worker/context.ts` — Database context loader (`loadVoiceContext`): queries learner profile, due review cards, active error patterns, and existing session history.
 - `worker/resolve-hook.ts` — Node module resolution hook enabling `@/` imports and `.ts` extension resolution in plain Node.
 - `scripts/voice/call.ts` — Scripted test participant for exercising the worker end-to-end with WAV files without needing a browser.
+- `scripts/voice/latency.ts` — Live voice latency report (`pnpm voice:latency`) measuring speech-end-to-first-audio against the gate.
 
 ## How it works
 
@@ -53,7 +54,7 @@ All models run through **LiveKit Inference**, requiring only `LIVEKIT_API_KEY` a
 
 Katie's speed follows the learner's listening level, falling back to the speaking level (`ttsSpeedForLevel` in `worker/job.ts`): A1 0.8, A2 0.9, B1 and up 1.0, and 0.9 before placement. The voice is the same at every level.
 
-Turn handling enables preemptive generation (`turnHandling: { preemptiveGeneration: { enabled: true } }`), drafting model replies on eager end-of-turn signals to cut latency. The 750 ms target isn't met yet: the 2026-10-26 prototype measured about 1.6 s end to end on a warm turn (FLU-63 tunes it).
+Turn handling enables preemptive generation (`turnHandling: { preemptiveGeneration: { enabled: true } }`), drafting model replies on eager end-of-turn signals to cut latency. The 750 ms target isn't met yet: the 2026-10-26 prototype measured about 1.6 s end to end on a warm turn. The browser measurement (see Latency) is the number the gate uses.
 
 ### Exchange collection and database persistence
 
@@ -76,6 +77,16 @@ The worker listens for `voice.AgentSessionEventTypes.ConversationItemAdded` even
 5. **Quota cut-off:** When remaining seconds reach 0, the worker lets the current reply finish, speaks a brief goodbye (`QUOTA_GOODBYE`, uninterruptible), then deletes the room (`ctx.deleteRoom()`). That disconnects the learner too, so their microphone stops streaming.
 6. **Withdrawn consent:** If the learner withdraws live voice consent in Settings mid-session, the worker ends the session immediately without speaking a goodbye.
 7. **Final write on shutdown:** On job shutdown, `meter.stop()` flushes and records any leftover elapsed seconds into `voice_usage` before persisting the remaining exchange collector state.
+
+### Latency
+
+Latency from the end of the learner's speech to the first audible reply audio is measured in the browser (`hooks/useLiveVoice.ts`, via `createLatencyTracker` in `lib/live-voice.ts`) using Web Audio `AnalyserNode`s every 10 ms. Learner speech is detected when the microphone level exceeds -45 dBFS (`MIC_SPEECH_DBFS`), and reply audio is detected when agent audio exceeds -50 dBFS (`AGENT_AUDIO_DBFS`) after the agent enters `thinking` or `speaking` (a reply prepared during the learner's turn can skip `thinking`). Once the worker has set `fluency.end_reason`, the next audio is the quota goodbye and isn't timed.
+
+The browser number is larger than the worker's `[voice] … e2e` log line: it adds the network, the browser's playout buffer and the time before the server's end-of-turn detection starts. In the 2026-10-26 headless Chrome test from Dhaka it was 600–900 ms above `e2e`.
+
+A hidden or throttled browser tab (tick gap > 100 ms) or an audio onset with a noisy microphone/overlap (< 100 ms) skips timing for that turn rather than reporting a misleading number. When the reply is saved, the worker announces its ID via the `fluency.reply_turn_id` participant attribute; the browser then saves the pending measurement to `session_turns.speech_end_to_audio_ms` via a server action.
+
+Running `pnpm voice:latency [--since YYYY-MM-DD] [--learner <uuid>]` reports p50 and p90 against the exit gate (p50 < 750 ms, p90 < 950 ms). At least 20 turns are required before issuing a pass/fail verdict.
 
 ### How to run
 
