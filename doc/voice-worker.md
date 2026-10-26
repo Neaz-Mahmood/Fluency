@@ -51,6 +51,8 @@ All models run through **LiveKit Inference**, requiring only `LIVEKIT_API_KEY` a
 | LLM   | `google/gemma-4-31b-it`    | Prompt from `getSystemPrompt` in `lib/prompts.ts`                      | Fastest time to first token (~426 ms p50).                     |
 | TTS   | `cartesia/sonic-3`         | Voice `f786b574-daa5-4673-aa0c-cbe3e8534c02` (Katie), `language: "en"` | Katie voice reproduces mixed English and Bangla help cleanly.  |
 
+Katie's speed follows the learner's listening level, falling back to the speaking level (`ttsSpeedForLevel` in `worker/job.ts`): A1 0.8, A2 0.9, B1 and up 1.0, and 0.9 before placement. The voice is the same at every level.
+
 Turn handling enables preemptive generation (`turnHandling: { preemptiveGeneration: { enabled: true } }`), drafting model replies on eager end-of-turn signals to cut latency. The 750 ms target isn't met yet: the 2026-10-26 prototype measured about 1.6 s end to end on a warm turn (FLU-63 tunes it).
 
 ### Exchange collection and database persistence

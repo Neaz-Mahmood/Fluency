@@ -1,4 +1,5 @@
 import { isUuid } from "@/lib/learner-id";
+import type { CefrLevel } from "@/lib/placement";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
 
 // Dispatched by task 10's token route.
@@ -21,6 +22,23 @@ export const TTS_VOICE_KATIE = "f786b574-daa5-4673-aa0c-cbe3e8534c02";
 
 // Keeps 'en' even for Bangla words; see doc/voice-path.md (Decision 3).
 export const TTS_LANGUAGE = "en";
+
+// Cartesia speed by listening level: slower for beginners. 1.0 is Cartesia's normal pace.
+export const TTS_SPEED_BY_LEVEL: Record<CefrLevel, number> = {
+  A1: 0.8,
+  A2: 0.9,
+  B1: 1.0,
+  B2: 1.0,
+  C1: 1.0,
+  C2: 1.0,
+};
+
+// Before placement there is no level; most learners start as beginners.
+export const TTS_SPEED_NO_LEVEL = 0.9;
+
+export function ttsSpeedForLevel(level: CefrLevel | null): number {
+  return level ? TTS_SPEED_BY_LEVEL[level] : TTS_SPEED_NO_LEVEL;
+}
 
 export type VoiceJob = {
   learnerId: string;

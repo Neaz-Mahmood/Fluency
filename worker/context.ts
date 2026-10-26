@@ -9,13 +9,14 @@ import { activeErrorExamples } from "@/lib/feedback-store";
 import { getSystemPrompt } from "@/lib/prompts";
 import { findOpenSession, loadTurns } from "@/lib/sessions";
 import { remainingVoiceSeconds } from "@/lib/voice-quota";
-import type { VoiceJob } from "./job";
+import { ttsSpeedForLevel, type VoiceJob } from "./job";
 
 export type VoiceContext = {
   instructions: string;
   sessionId: string | null;
   history: { role: "user" | "assistant"; content: string }[];
   remainingSeconds: number;
+  ttsSpeed: number;
 };
 
 export async function loadVoiceContext(
@@ -68,5 +69,7 @@ export async function loadVoiceContext(
     history = turns.map((turn) => ({ role: turn.role, content: turn.content }));
   }
 
-  return { instructions, sessionId, history, remainingSeconds };
+  const ttsSpeed = ttsSpeedForLevel(profile.cefrListening ?? profile.cefrSpeaking);
+
+  return { instructions, sessionId, history, remainingSeconds, ttsSpeed };
 }

@@ -60,6 +60,32 @@ describe("worker context database tests", () => {
       expect(res.history).toEqual([]);
       expect(res.instructions).toContain("café barista");
       expect(res.remainingSeconds).toBe(300);
+      expect(res.ttsSpeed).toBe(0.9);
+    }
+  });
+
+  it("uses listening level over speaking level for ttsSpeed", async () => {
+    const learnerId = crypto.randomUUID();
+    const [profile] = await db
+      .insert(learnerProfiles)
+      .values({
+        learnerId,
+        nativeLanguage: "bn-BD",
+        targetLanguage: "en-US",
+        cefrSpeaking: "B1",
+        cefrListening: "A1",
+      })
+      .returning();
+    await setVoiceConsent(db, profile.learnerId, true);
+    const res = await loadVoiceContext(
+      db,
+      { learnerId: profile.learnerId, scenarioId: "cafe", sessionId: null },
+      new Date(),
+    );
+
+    expect("error" in res).toBe(false);
+    if (!("error" in res)) {
+      expect(res.ttsSpeed).toBe(0.8);
     }
   });
 

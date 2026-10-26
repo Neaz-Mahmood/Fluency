@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { ExchangeCollector, nextMeterDelayMs, parseJobMetadata, VoiceMeter } from "./job";
+import {
+  ExchangeCollector,
+  nextMeterDelayMs,
+  parseJobMetadata,
+  TTS_SPEED_BY_LEVEL,
+  ttsSpeedForLevel,
+  VoiceMeter,
+} from "./job";
 
 describe("parseJobMetadata", () => {
   const validLearnerId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
@@ -216,5 +223,22 @@ describe("nextMeterDelayMs", () => {
     expect(nextMeterDelayMs(5)).toBe(5_000);
     expect(nextMeterDelayMs(0)).toBe(1_000);
     expect(nextMeterDelayMs(0.2)).toBe(1_000);
+  });
+});
+
+describe("ttsSpeedForLevel", () => {
+  it("maps CEFR levels to the expected Cartesia speed", () => {
+    expect(ttsSpeedForLevel("A1")).toBe(0.8);
+    expect(ttsSpeedForLevel("A2")).toBe(0.9);
+    expect(ttsSpeedForLevel("B1")).toBe(1.0);
+    expect(ttsSpeedForLevel("C2")).toBe(1.0);
+    expect(ttsSpeedForLevel(null)).toBe(0.9);
+  });
+
+  it("keeps all level speeds within Cartesia numeric range (0.6 to 1.5)", () => {
+    for (const speed of Object.values(TTS_SPEED_BY_LEVEL)) {
+      expect(speed).toBeGreaterThanOrEqual(0.6);
+      expect(speed).toBeLessThanOrEqual(1.5);
+    }
   });
 });

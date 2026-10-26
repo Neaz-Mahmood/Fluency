@@ -70,6 +70,7 @@ export default defineAgent({
         model: TTS_MODEL,
         voice: TTS_VOICE_KATIE,
         language: TTS_LANGUAGE,
+        modelOptions: { speed: context.ttsSpeed },
       }),
       turnHandling: { preemptiveGeneration: { enabled: true } },
     });
