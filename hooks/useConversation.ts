@@ -365,6 +365,21 @@ export function useConversation({
     void sendUserText(draft, "typed");
   }
 
+  function upsertTurn(turn: Turn) {
+    setTurns((current) => {
+      const exists = current.some((t) => t.id === turn.id);
+      if (exists) {
+        return current.map((t) => (t.id === turn.id ? { ...t, content: turn.content } : t));
+      }
+      return [...current, turn];
+    });
+  }
+
+  function adoptSession(sessionId: string) {
+    chatSessionIdRef.current = sessionId;
+    window.history.replaceState(null, "", `?session=${sessionId}`);
+  }
+
   const toggleHandsFree = () => setHandsFree((value) => !value);
 
   return {
@@ -386,5 +401,7 @@ export function useConversation({
     onMicPointerUp,
     onSubmit,
     getSessionId: () => chatSessionIdRef.current,
+    upsertTurn,
+    adoptSession,
   };
 }

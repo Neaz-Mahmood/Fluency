@@ -11,6 +11,7 @@ import {
 } from "@livekit/agents";
 
 import { getDb } from "@/lib/db";
+import { SESSION_ID_ATTRIBUTE } from "@/lib/live-voice";
 import { saveExchange, startSession } from "@/lib/sessions";
 import { loadVoiceContext } from "./context";
 import {
@@ -81,6 +82,10 @@ export default defineAgent({
             scenarioId: job.scenarioId,
           });
           sessionId = created.sessionId;
+          // Tells the browser which session it is in, for Finish and reloads (hooks/useLiveVoice.ts).
+          ctx.room.localParticipant
+            ?.setAttributes({ [SESSION_ID_ATTRIBUTE]: sessionId })
+            .catch((error: unknown) => console.error("Could not announce the session id:", error));
         }
         await saveExchange(db, {
           sessionId,

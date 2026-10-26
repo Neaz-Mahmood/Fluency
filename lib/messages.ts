@@ -188,6 +188,23 @@ const en = {
     saving: "Saving…",
     error: "Could not save. Try again.",
   },
+  liveVoice: {
+    start: "Start live voice",
+    stop: "End live voice",
+    connecting: "Connecting…",
+    hint: "Talk naturally, with no button to hold. Up to 5 minutes a day.",
+    consentTitle: "Before you start live voice",
+    agreeAndStart: "Agree and start",
+    notNow: "Not now",
+    unavailable:
+      "Live voice isn't available right now. You can keep practicing with the mic button or by typing.",
+    quotaUsed:
+      "You've used today's 5 minutes of live voice. It resets at midnight, Bangladesh time. You can keep practicing with the mic button or by typing.",
+    micDenied: "Fluency can't use your microphone. Allow the mic in your browser, or type instead.",
+    dropped:
+      "Live voice disconnected. You can start it again, or keep practicing with the mic button or by typing.",
+    tapToHear: "Tap to hear your partner",
+  },
 };
 
 export type Messages = typeof en;
@@ -380,6 +397,24 @@ const bn: Messages = {
     withdraw: "সম্মতি তুলে নিন",
     saving: "সংরক্ষণ হচ্ছে…",
     error: "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+  },
+  liveVoice: {
+    start: "লাইভ ভয়েস শুরু করুন",
+    stop: "লাইভ ভয়েস বন্ধ করুন",
+    connecting: "সংযোগ হচ্ছে…",
+    hint: "বোতাম চেপে না ধরে স্বাভাবিকভাবে কথা বলুন। দিনে সর্বোচ্চ ৫ মিনিট।",
+    consentTitle: "লাইভ ভয়েস শুরুর আগে",
+    agreeAndStart: "সম্মতি দিয়ে শুরু করুন",
+    notNow: "এখন না",
+    unavailable:
+      "লাইভ ভয়েস এখন চালু করা যাচ্ছে না। মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যেতে পারেন।",
+    quotaUsed:
+      "আজকের ৫ মিনিটের লাইভ ভয়েস শেষ। বাংলাদেশ সময় রাত ১২টায় আবার পাবেন। মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যেতে পারেন।",
+    micDenied:
+      "ফ্লুয়েন্সি আপনার মাইক্রোফোন ব্যবহার করতে পারছে না। ব্রাউজারে মাইকের অনুমতি দিন, অথবা লিখে পাঠান।",
+    dropped:
+      "লাইভ ভয়েসের সংযোগ বিচ্ছিন্ন হয়েছে। আবার শুরু করতে পারেন, অথবা মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যান।",
+    tapToHear: "পার্টনারের কথা শুনতে ট্যাপ করুন",
   },
 };
 

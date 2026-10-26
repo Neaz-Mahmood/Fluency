@@ -11,6 +11,7 @@ import { isUuid } from "@/lib/learner-id";
 import { getMessages } from "@/lib/messages";
 import { isScenarioId } from "@/lib/scenarios";
 import { findOpenSession, loadTurns } from "@/lib/sessions";
+import { liveVoiceConfig } from "@/lib/voice-token";
 
 export const metadata: Metadata = {
   title: "Practice",
@@ -42,7 +43,17 @@ async function PracticeConversation({ searchParams }: { searchParams: SearchPara
   }
 
   const saved = learner ? await loadSavedConversation(learner, session) : null;
-  return <Conversation saved={saved} messages={getMessages(learner?.nativeLanguage)} />;
+  const liveVoice = {
+    available: liveVoiceConfig() !== null,
+    consented: learner?.voiceConsentAt != null,
+  };
+  return (
+    <Conversation
+      saved={saved}
+      messages={getMessages(learner?.nativeLanguage)}
+      liveVoice={liveVoice}
+    />
+  );
 }
 
 // The conversation in ?session=, so a reload shows it again. Only the learner's own open

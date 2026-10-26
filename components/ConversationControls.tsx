@@ -2,16 +2,29 @@
 
 import { Mic, Square } from "lucide-react";
 
+import { LiveVoiceControls } from "@/components/LiveVoiceControls";
 import { Button } from "@/components/ui/button";
-import type { useConversation } from "@/hooks/useConversation";
+import type { Status, useConversation } from "@/hooks/useConversation";
+import type { useLiveVoice } from "@/hooks/useLiveVoice";
 import type { Messages } from "@/lib/messages";
+import type { ScenarioId } from "@/lib/scenarios";
+
+// Live voice is only offered in scenario conversations, not in placement.
+export type LiveVoiceProps = {
+  live: ReturnType<typeof useLiveVoice>;
+  available: boolean;
+  consented: boolean;
+  scenarioId: ScenarioId;
+};
 
 export function ConversationControls({
   conversation,
   messages,
+  liveVoice,
 }: {
   conversation: ReturnType<typeof useConversation>;
   messages: Messages;
+  liveVoice?: LiveVoiceProps;
 }) {
   const {
     status,
@@ -29,17 +42,24 @@ export function ConversationControls({
     toggleHandsFree,
   } = conversation;
 
+  const liveStatus = liveVoice?.live.status ?? "off";
+  const liveOn = liveStatus !== "off";
+  // While live voice is on, the status row follows the agent instead of the browser.
+  const shownStatus: Status =
+    liveStatus === "off" ? status : liveStatus === "connecting" ? "thinking" : liveStatus;
   const busy = status === "thinking" || status === "speaking";
   const statusLabel =
-    status === "listening"
-      ? messages.practice.statusListening
-      : status === "thinking"
-        ? messages.practice.statusThinking
-        : status === "speaking"
-          ? messages.practice.statusSpeaking
-          : handsFree
-            ? messages.practice.statusHandsFree
-            : messages.practice.statusReady;
+    liveStatus === "connecting"
+      ? messages.liveVoice.connecting
+      : shownStatus === "listening"
+        ? messages.practice.statusListening
+        : shownStatus === "thinking"
+          ? messages.practice.statusThinking
+          : shownStatus === "speaking"
+            ? messages.practice.statusSpeaking
+            : handsFree
+              ? messages.practice.statusHandsFree
+              : messages.practice.statusReady;
 
   return (
     <div className="sticky bottom-0 z-10 flex flex-col gap-4 rounded-lg border border-oceanic-border bg-white p-5 shadow-[0_8px_24px_-4px_rgba(3,37,108,0.10)]">
@@ -48,11 +68,11 @@ export function ConversationControls({
         <div className="flex items-center gap-2">
           <span
             className={`size-2 rounded-full ${
-              status === "listening"
+              shownStatus === "listening"
                 ? "bg-oceanic-surge shadow-[0_0_8px_var(--color-oceanic-surge)] animate-pulse"
-                : status === "thinking"
+                : shownStatus === "thinking"
                   ? "bg-oceanic-persian animate-bounce"
-                  : status === "speaking"
+                  : shownStatus === "speaking"
                     ? "bg-oceanic-ocean animate-pulse"
                     : "bg-oceanic-outline"
             }`}
@@ -65,7 +85,8 @@ export function ConversationControls({
           type="button"
           aria-pressed={handsFree}
           onClick={toggleHandsFree}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer ${
+          disabled={liveOn}
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
             handsFree
               ? "border border-oceanic-imperial bg-oceanic-imperial text-white"
               : "border border-oceanic-border bg-white text-oceanic-muted hover:border-oceanic-ocean hover:text-oceanic-imperial"
@@ -92,6 +113,17 @@ export function ConversationControls({
         </p>
       ) : null}
 
+      {liveVoice?.available ? (
+        <LiveVoiceControls
+          live={liveVoice.live}
+          consented={liveVoice.consented}
+          scenarioId={liveVoice.scenarioId}
+          getSessionId={conversation.getSessionId}
+          beforeStart={conversation.interrupt}
+          messages={messages}
+        />
+      ) : null}
+
       {/* Voice Trigger Buttons */}
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -101,7 +133,7 @@ export function ConversationControls({
               ? "bg-oceanic-imperial ring-2 ring-oceanic-surge shadow-[0_0_12px_rgba(6,190,225,0.4)]"
               : "bg-oceanic-imperial hover:bg-oceanic-persian active:bg-oceanic-ocean"
           }`}
-          disabled={!speechReady || status === "thinking"}
+          disabled={liveOn || !speechReady || status === "thinking"}
           aria-pressed={status === "listening"}
           onPointerDown={onMicPointerDown}
           onPointerUp={onMicPointerUp}
@@ -136,13 +168,13 @@ export function ConversationControls({
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={messages.practice.placeholder}
-          disabled={status === "thinking"}
+          disabled={liveOn || status === "thinking"}
           className="h-10 min-w-0 flex-1 rounded border border-oceanic-border bg-white px-3.5 text-sm text-oceanic-imperial placeholder-oceanic-muted outline-none transition-all focus:border-oceanic-ocean focus:ring-2 focus:ring-oceanic-surge/30 disabled:opacity-50"
         />
         <Button
           type="submit"
           className="h-10 rounded px-5"
-          disabled={!draft.trim() || status === "thinking"}
+          disabled={liveOn || !draft.trim() || status === "thinking"}
         >
           {messages.practice.send}
         </Button>

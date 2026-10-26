@@ -8,15 +8,18 @@ import { ScenarioPicker } from "@/components/ScenarioPicker";
 import { Transcript } from "@/components/Transcript";
 import { Button } from "@/components/ui/button";
 import { useConversation, type SavedConversation } from "@/hooks/useConversation";
+import { useLiveVoice } from "@/hooks/useLiveVoice";
 import type { Messages } from "@/lib/messages";
 import { SCENARIOS, type ScenarioId } from "@/lib/scenarios";
 
 export function Conversation({
   saved,
   messages,
+  liveVoice,
 }: {
   saved: SavedConversation | null;
   messages: Messages;
+  liveVoice: { available: boolean; consented: boolean };
 }) {
   const router = useRouter();
   const [finishing, setFinishing] = useState(false);
@@ -28,11 +31,16 @@ export function Conversation({
     saved,
     messages,
   });
+  const live = useLiveVoice({
+    messages,
+    onTurn: conversation.upsertTurn,
+    onSessionId: conversation.adoptSession,
+  });
   const { turns, status, interim } = conversation;
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight });
-  }, [turns, interim, status]);
+  }, [turns, interim, live.interim, status]);
 
   const scenario = SCENARIOS.find((item) => item.id === scenarioId);
 
@@ -41,6 +49,7 @@ export function Conversation({
       <ScenarioPicker
         messages={messages}
         onSelect={(id) => {
+          void live.stop();
           conversation.reset();
           setScenarioId(id);
         }}
@@ -66,6 +75,7 @@ export function Conversation({
             size="sm"
             className="rounded text-xs"
             onClick={() => {
+              void live.stop();
               conversation.reset();
               setScenarioId(null);
             }}
@@ -80,6 +90,12 @@ export function Conversation({
               disabled={finishing || status === "thinking"}
               onClick={async () => {
                 setFinishing(true);
+                if (live.status !== "off") {
+                  await live.stop();
+                  // shortcut: the worker saves the last exchange as the call closes. Upgrade it
+                  // to waiting for a worker signal if a last turn goes missing.
+                  await new Promise((resolve) => setTimeout(resolve, 1500));
+                }
                 const id = await conversation.finish();
                 if (id) {
                   router.push(`/history/${id}`);
@@ -101,10 +117,14 @@ export function Conversation({
         className="flex min-h-96 flex-1 flex-col overflow-y-auto rounded-lg border border-oceanic-border bg-oceanic-subtle p-5 shadow-inner"
         aria-live="polite"
       >
-        <Transcript turns={turns} interim={interim} messages={messages} />
+        <Transcript turns={turns} interim={live.interim || interim} messages={messages} />
       </div>
 
-      <ConversationControls conversation={conversation} messages={messages} />
+      <ConversationControls
+        conversation={conversation}
+        messages={messages}
+        liveVoice={{ live, scenarioId, ...liveVoice }}
+      />
     </div>
   );
 }
