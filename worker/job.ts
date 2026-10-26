@@ -133,3 +133,34 @@ export class ExchangeCollector {
     return null;
   }
 }
+
+// How often a running session's time is written to voice_usage.
+export const METER_INTERVAL_MS = 15_000;
+
+// Spoken when the day's live voice time runs out, before the room closes.
+export const QUOTA_GOODBYE =
+  "That's our live voice time for today. Great practice! You can keep going by typing.";
+
+export class VoiceMeter {
+  // A plain field, not a parameter property: Node's type stripping can't run those.
+  private readonly startMs: number;
+  private returned = 0;
+
+  constructor(startMs: number) {
+    this.startMs = startMs;
+  }
+
+  // Whole seconds elapsed since startMs that haven't been returned yet. Fractions carry over.
+  take(nowMs: number): number {
+    const elapsedSeconds = Math.floor((nowMs - this.startMs) / 1000);
+    const toReturn = Math.max(0, elapsedSeconds - this.returned);
+    this.returned += toReturn;
+    return toReturn;
+  }
+}
+
+// Delay until the next meter tick: every METER_INTERVAL_MS, but sooner when less time is left,
+// so the cut-off lands on time. Never under 1 s.
+export function nextMeterDelayMs(remainingSeconds: number): number {
+  return Math.max(1000, Math.min(METER_INTERVAL_MS, remainingSeconds * 1000));
+}

@@ -204,6 +204,9 @@ const en = {
     dropped:
       "Live voice disconnected. You can start it again, or keep practicing with the mic button or by typing.",
     tapToHear: "Tap to hear your partner",
+    consentWithdrawn:
+      "Live voice stopped because you withdrew consent in Settings. You can keep practicing with the mic button or by typing.",
+    lastMinute: "Less than a minute of live voice left today.",
   },
 };
 
@@ -415,6 +418,9 @@ const bn: Messages = {
     dropped:
       "লাইভ ভয়েসের সংযোগ বিচ্ছিন্ন হয়েছে। আবার শুরু করতে পারেন, অথবা মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যান।",
     tapToHear: "পার্টনারের কথা শুনতে ট্যাপ করুন",
+    consentWithdrawn:
+      "আপনি সেটিংসে সম্মতি তুলে নেওয়ায় লাইভ ভয়েস বন্ধ হয়েছে। মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যেতে পারেন।",
+    lastMinute: "আজকের লাইভ ভয়েসের এক মিনিটেরও কম সময় বাকি।",
   },
 };
 

@@ -1,4 +1,5 @@
 import { isUuid } from "@/lib/learner-id";
+import type { Messages } from "@/lib/messages";
 
 export const TRANSCRIPTION_TOPIC = "lk.transcription";
 export const AGENT_STATE_ATTRIBUTE = "lk.agent.state";
@@ -60,4 +61,27 @@ export function transcriptUpdate(input: {
 export function sessionIdFromAttributes(changed: Record<string, string>): string | null {
   const value = changed[SESSION_ID_ATTRIBUTE];
   return isUuid(value) ? value : null;
+}
+
+// Set by the worker when it ends a session itself: "quota" or "consent".
+export const END_REASON_ATTRIBUTE = "fluency.end_reason";
+// Today's live voice seconds left, as a whole number, updated on every meter tick.
+export const REMAINING_SECONDS_ATTRIBUTE = "fluency.remaining_seconds";
+
+export function remainingFromAttributes(changed: Record<string, string>): number | null {
+  const value = changed[REMAINING_SECONDS_ATTRIBUTE];
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    return Number(value);
+  }
+  return null;
+}
+
+export function liveEndMessage(reason: string | null, messages: Messages["liveVoice"]): string {
+  if (reason === "quota") {
+    return messages.quotaUsed;
+  }
+  if (reason === "consent") {
+    return messages.consentWithdrawn;
+  }
+  return messages.dropped;
 }

@@ -11,7 +11,11 @@ import {
 } from "@livekit/agents";
 
 import { getDb } from "@/lib/db";
-import { SESSION_ID_ATTRIBUTE } from "@/lib/live-voice";
+import {
+  END_REASON_ATTRIBUTE,
+  REMAINING_SECONDS_ATTRIBUTE,
+  SESSION_ID_ATTRIBUTE,
+} from "@/lib/live-voice";
 import { saveExchange, startSession } from "@/lib/sessions";
 import { loadVoiceContext } from "./context";
 import {
@@ -20,12 +24,14 @@ import {
   ExchangeCollector,
   LLM_MODEL,
   parseJobMetadata,
+  QUOTA_GOODBYE,
   STT_MODEL,
   TTS_LANGUAGE,
   TTS_MODEL,
   TTS_VOICE_KATIE,
   type VoiceExchange,
 } from "./job";
+import { startVoiceMeter, type VoiceLimit } from "./meter";
 
 // LiveKit reports latencies in seconds.
 function ms(seconds: number | undefined): string {
@@ -124,7 +130,10 @@ export default defineAgent({
       }
     });
 
+    let meter: ReturnType<typeof startVoiceMeter> | null = null;
     ctx.addShutdownCallback(async () => {
+      // Records the session's last seconds before the final save.
+      await meter?.stop();
       const flushed = collector.flush();
       if (flushed) {
         saving = saving.then(() => save(flushed));
@@ -140,6 +149,53 @@ export default defineAgent({
       record: false,
     });
     await ctx.connect();
+
+    // Lets the browser warn in the last minute (hooks/useLiveVoice.ts).
+    const announceRemaining = (seconds: number) => {
+      ctx.room.localParticipant
+        ?.setAttributes({ [REMAINING_SECONDS_ATTRIBUTE]: String(seconds) })
+        .catch((error: unknown) => console.error("Could not announce remaining seconds:", error));
+    };
+    announceRemaining(context.remainingSeconds);
+
+    let limitEnded = false;
+    // Out of time: a goodbye, then the room is deleted so the learner's mic stops too.
+    // Consent withdrawn: no goodbye, the voice stops at once.
+    const endForLimit = async (limit: VoiceLimit) => {
+      if (limitEnded) return;
+      limitEnded = true;
+
+      try {
+        await ctx.room.localParticipant?.setAttributes({ [END_REASON_ATTRIBUTE]: limit });
+      } catch (error) {
+        console.error("Could not set end reason attribute:", error);
+      }
+
+      if (limit === "quota") {
+        try {
+          await session.say(QUOTA_GOODBYE, { allowInterruptions: false }).waitForPlayout();
+        } catch (error) {
+          console.error("Could not play quota goodbye:", error);
+        }
+      }
+
+      // Logged first: deleting the room shuts this job down.
+      console.log(`[voice] ending: ${limit}`);
+      try {
+        await ctx.deleteRoom();
+      } catch (error) {
+        console.error("Could not delete room:", error);
+        ctx.shutdown(limit);
+      }
+    };
+
+    meter = startVoiceMeter({
+      db,
+      learnerId: job.learnerId,
+      remainingSeconds: context.remainingSeconds,
+      onTick: announceRemaining,
+      onLimit: (limit) => void endForLimit(limit),
+    });
 
     // No greeting: as in text chat, the learner speaks first.
   },

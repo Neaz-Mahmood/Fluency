@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import type { Turn } from "@/hooks/useConversation";
 import {
   AGENT_STATE_ATTRIBUTE,
+  END_REASON_ATTRIBUTE,
+  liveEndMessage,
   liveStatus,
+  remainingFromAttributes,
   sessionIdFromAttributes,
   TRANSCRIPTION_TOPIC,
   transcriptUpdate,
@@ -25,6 +28,7 @@ export function useLiveVoice(options: {
   interim: string;
   error: string | null;
   needsAudioTap: boolean;
+  remainingSeconds: number | null;
   start: (target: {
     scenarioId: ScenarioId;
     sessionId: string | null;
@@ -36,11 +40,13 @@ export function useLiveVoice(options: {
   const [interim, setInterim] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [needsAudioTap, setNeedsAudioTap] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
 
   const statusRef = useRef<LiveVoiceStatus>("off");
   const onTurnRef = useRef(options.onTurn);
   const onSessionIdRef = useRef(options.onSessionId);
   const messagesRef = useRef(options.messages);
+  const endReasonRef = useRef<string | null>(null);
 
   const roomRef = useRef<import("livekit-client").Room | null>(null);
   const attachedElementsRef = useRef<Set<HTMLMediaElement>>(new Set());
@@ -80,6 +86,7 @@ export function useLiveVoice(options: {
     setStatus("off");
     setInterim("");
     setNeedsAudioTap(false);
+    setRemainingSeconds(null);
     setError(errorMessage);
     return disconnected;
   }
@@ -102,6 +109,7 @@ export function useLiveVoice(options: {
     setStatus("connecting");
     setError(null);
     setInterim("");
+    endReasonRef.current = null;
 
     let response: Response;
     try {
@@ -138,9 +146,16 @@ export function useLiveVoice(options: {
     let url: string;
     let token: string;
     try {
-      const data = (await response.json()) as { url: string; token: string };
+      const data = (await response.json()) as {
+        url: string;
+        token: string;
+        remainingSeconds?: number;
+      };
       url = data.url;
       token = data.token;
+      if (typeof data.remainingSeconds === "number") {
+        setRemainingSeconds(data.remainingSeconds);
+      }
     } catch {
       statusRef.current = "off";
       setStatus("off");
@@ -204,6 +219,13 @@ export function useLiveVoice(options: {
       if (sessionId !== null) {
         onSessionIdRef.current(sessionId);
       }
+      const remaining = remainingFromAttributes(attributes);
+      if (remaining !== null) {
+        setRemainingSeconds(remaining);
+      }
+      if (attributes[END_REASON_ATTRIBUTE] !== undefined) {
+        endReasonRef.current = attributes[END_REASON_ATTRIBUTE];
+      }
     }
     function agentArrived(attributes: Record<string, string>) {
       agentJoined = true;
@@ -239,12 +261,15 @@ export function useLiveVoice(options: {
 
     room.on(RoomEvent.ParticipantDisconnected, (participant) => {
       if (participant.kind === ParticipantKind.AGENT) {
-        void cleanup(messagesRef.current.liveVoice.dropped);
+        void cleanup(liveEndMessage(endReasonRef.current, messagesRef.current.liveVoice));
       }
     });
 
     // stop() removes the listeners first, so this only fires when the connection drops.
-    room.on(RoomEvent.Disconnected, () => void cleanup(messagesRef.current.liveVoice.dropped));
+    room.on(
+      RoomEvent.Disconnected,
+      () => void cleanup(liveEndMessage(endReasonRef.current, messagesRef.current.liveVoice)),
+    );
 
     try {
       await room.connect(url, token);
@@ -301,6 +326,7 @@ export function useLiveVoice(options: {
     interim,
     error,
     needsAudioTap,
+    remainingSeconds,
     start,
     stop,
     resumeAudio,

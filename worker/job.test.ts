@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ExchangeCollector, parseJobMetadata } from "./job";
+import { ExchangeCollector, nextMeterDelayMs, parseJobMetadata, VoiceMeter } from "./job";
 
 describe("parseJobMetadata", () => {
   const validLearnerId = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
@@ -197,5 +197,24 @@ describe("ExchangeCollector", () => {
     });
 
     expect(collector.flush()).toBeNull();
+  });
+});
+
+describe("VoiceMeter", () => {
+  it("meters whole seconds and carries fractions", () => {
+    const meter = new VoiceMeter(0);
+    expect(meter.take(15_400)).toBe(15);
+    expect(meter.take(30_900)).toBe(15);
+    expect(meter.take(31_000)).toBe(1);
+    expect(meter.take(20_000)).toBe(0);
+  });
+});
+
+describe("nextMeterDelayMs", () => {
+  it("calculates delay based on remaining seconds", () => {
+    expect(nextMeterDelayMs(300)).toBe(15_000);
+    expect(nextMeterDelayMs(5)).toBe(5_000);
+    expect(nextMeterDelayMs(0)).toBe(1_000);
+    expect(nextMeterDelayMs(0.2)).toBe(1_000);
   });
 });

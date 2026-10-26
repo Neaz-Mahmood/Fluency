@@ -137,6 +137,9 @@ export function LiveVoiceControls({
           >
             {messages.liveVoice.stop}
           </Button>
+          {live.remainingSeconds !== null && live.remainingSeconds <= 60 ? (
+            <span className="text-xs text-oceanic-muted">{messages.liveVoice.lastMinute}</span>
+          ) : null}
         </div>
       ) : null}
 

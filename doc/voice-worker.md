@@ -65,6 +65,16 @@ The worker listens for `voice.AgentSessionEventTypes.ConversationItemAdded` even
 6. For assistant messages, latency metrics (`endOfTurnDelay`, `llmNodeTtft`, `ttsNodeTtfb`, `e2eLatency`) are logged to stdout prefixed with `[voice]`.
 7. `ctx.addShutdownCallback` flushes any remaining buffered user turn and awaits all in-flight database saves before disconnecting.
 
+### Quota
+
+1. **What counts:** Connected wall-clock time from when the agent connects until the job shuts down. It counts elapsed wall-clock time rather than speech duration because vendors bill the entire active stream (Flux streams continuously and LiveKit bills session minutes), and learners perceive daily quota as session time ("5 minutes a day").
+2. **Worker start checks:** Before joining the room, `loadVoiceContext` performs the worker's own validation of consent (`profile.voiceConsentAt !== null`) and remaining quota (`remainingVoiceSeconds > 0`). This guards against dispatches that execute after token issuance when quota has already expired.
+3. **Session metering loop:** The session is metered into `voice_usage` periodically via `startVoiceMeter`. It ticks every 15 seconds (`METER_INTERVAL_MS = 15_000`), or sooner when fewer seconds remain (`nextMeterDelayMs`, down to a 1 s floor) so that the cut-off lands right on time.
+4. **Attributes to the browser:** On connect and every meter tick, the worker announces remaining time to the room via participant attribute `fluency.remaining_seconds`. When a session is terminated by the worker, it announces `fluency.end_reason` (`"quota"` or `"consent"`).
+5. **Quota cut-off:** When remaining seconds reach 0, the worker lets the current reply finish, speaks a brief goodbye (`QUOTA_GOODBYE`, uninterruptible), then deletes the room (`ctx.deleteRoom()`). That disconnects the learner too, so their microphone stops streaming.
+6. **Withdrawn consent:** If the learner withdraws live voice consent in Settings mid-session, the worker ends the session immediately without speaking a goodbye.
+7. **Final write on shutdown:** On job shutdown, `meter.stop()` flushes and records any leftover elapsed seconds into `voice_usage` before persisting the remaining exchange collector state.
+
 ### How to run
 
 Run the worker:
@@ -90,6 +100,6 @@ The script joins the room, streams 10 ms PCM audio frames to simulate microphone
 - **No recording:** `session.start` passes `record: false`. By default, LiveKit Agents writes the session audio to `audio.ogg` in the OS temp folder and uploads audio, transcript and traces to LiveKit Cloud. Fluency stores no raw audio.
 - **No greeting:** In alignment with text conversation mode, the tutor does not greet first; the learner speaks first.
 - **English-only STT:** Deepgram Flux general English is used. Spoken Bangla words in A1/A2 turns may be dropped or turned into English-sounding guesses. FLU-68 tests this against `deepgram/flux-general-multi`.
-- **Enforcement hooks:** Quota limits and consent checks are verified when requesting a token (`POST /api/voice/token`). Quota is only checked when a session starts; nothing meters or cuts off a running session until task 11 (FLU-61).
+- **Enforcement hooks:** Quota limits and consent checks are verified when requesting a token (`POST /api/voice/token`). The running session is metered and cut off by the worker. A learner can go past the 300 s by the rest of the current reply plus the goodbye (8 s in testing: 308 s).
 - **Finish delay shortcut:** The 1.5 s wait before finishing a live session is a temporary shortcut to give the worker time to persist the final exchange before recap generation.
 - **Database connectivity & deployment:** The worker requires direct Postgres database access. As a result, it cannot be deployed to LiveKit Cloud until a managed Postgres database reachable from the cloud worker is configured (FLU-67).

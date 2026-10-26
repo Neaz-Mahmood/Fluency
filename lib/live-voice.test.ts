@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  liveEndMessage,
   liveStatus,
+  remainingFromAttributes,
+  REMAINING_SECONDS_ATTRIBUTE,
   sessionIdFromAttributes,
   SESSION_ID_ATTRIBUTE,
   transcriptUpdate,
 } from "@/lib/live-voice";
+import { en } from "@/lib/messages";
 
 describe("liveStatus", () => {
   it("maps listening and idle to listening", () => {
@@ -160,5 +164,25 @@ describe("sessionIdFromAttributes", () => {
 
   it("returns null for a missing key", () => {
     expect(sessionIdFromAttributes({})).toBeNull();
+  });
+});
+
+describe("remainingFromAttributes", () => {
+  it("parses digit-only strings and returns null for invalid or missing", () => {
+    expect(remainingFromAttributes({ [REMAINING_SECONDS_ATTRIBUTE]: "42" })).toBe(42);
+    expect(remainingFromAttributes({ [REMAINING_SECONDS_ATTRIBUTE]: "0" })).toBe(0);
+    expect(remainingFromAttributes({ [REMAINING_SECONDS_ATTRIBUTE]: "abc" })).toBeNull();
+    expect(remainingFromAttributes({ [REMAINING_SECONDS_ATTRIBUTE]: "-1" })).toBeNull();
+    expect(remainingFromAttributes({ [REMAINING_SECONDS_ATTRIBUTE]: "4.5" })).toBeNull();
+    expect(remainingFromAttributes({})).toBeNull();
+  });
+});
+
+describe("liveEndMessage", () => {
+  it("maps end reasons to corresponding messages", () => {
+    expect(liveEndMessage("quota", en.liveVoice)).toBe(en.liveVoice.quotaUsed);
+    expect(liveEndMessage("consent", en.liveVoice)).toBe(en.liveVoice.consentWithdrawn);
+    expect(liveEndMessage(null, en.liveVoice)).toBe(en.liveVoice.dropped);
+    expect(liveEndMessage("unknown-reason", en.liveVoice)).toBe(en.liveVoice.dropped);
   });
 });

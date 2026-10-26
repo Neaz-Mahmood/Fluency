@@ -8,12 +8,14 @@ import { learnerProfiles } from "@/lib/db/schema";
 import { activeErrorExamples } from "@/lib/feedback-store";
 import { getSystemPrompt } from "@/lib/prompts";
 import { findOpenSession, loadTurns } from "@/lib/sessions";
+import { remainingVoiceSeconds } from "@/lib/voice-quota";
 import type { VoiceJob } from "./job";
 
 export type VoiceContext = {
   instructions: string;
   sessionId: string | null;
   history: { role: "user" | "assistant"; content: string }[];
+  remainingSeconds: number;
 };
 
 export async function loadVoiceContext(
@@ -28,6 +30,15 @@ export async function loadVoiceContext(
 
   if (!profile) {
     return { error: "Learner not found." };
+  }
+
+  if (profile.voiceConsentAt === null) {
+    return { error: "No voice consent." };
+  }
+
+  const remainingSeconds = await remainingVoiceSeconds(db, job.learnerId, now);
+  if (remainingSeconds <= 0) {
+    return { error: "No voice time left today." };
   }
 
   const [items, mistakes] = await Promise.all([
@@ -57,5 +68,5 @@ export async function loadVoiceContext(
     history = turns.map((turn) => ({ role: turn.role, content: turn.content }));
   }
 
-  return { instructions, sessionId, history };
+  return { instructions, sessionId, history, remainingSeconds };
 }

@@ -1,7 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { learnerProfiles } from "@/lib/db/schema";
+import { setVoiceConsent } from "@/lib/learner";
 import { endSession, saveExchange, startSession } from "@/lib/sessions";
+import { recordVoiceSeconds } from "@/lib/voice-quota";
 import { createTestDb, resetTestDb } from "@/test/db";
 import { TEST_DATABASE_URL } from "@/test/db-url";
 import { loadVoiceContext } from "./context";
@@ -45,6 +47,7 @@ describe("worker context database tests", () => {
 
   it("loads context for a new learner with no session", async () => {
     const profile = await insertProfile();
+    await setVoiceConsent(db, profile.learnerId, true);
     const res = await loadVoiceContext(
       db,
       { learnerId: profile.learnerId, scenarioId: "cafe", sessionId: null },
@@ -56,11 +59,13 @@ describe("worker context database tests", () => {
       expect(res.sessionId).toBeNull();
       expect(res.history).toEqual([]);
       expect(res.instructions).toContain("café barista");
+      expect(res.remainingSeconds).toBe(300);
     }
   });
 
   it("loads context for an open session with 2 saved turns in order", async () => {
     const profile = await insertProfile();
+    await setVoiceConsent(db, profile.learnerId, true);
     const session = await startSession(db, {
       learnerId: profile.learnerId,
       mode: "conversation",
@@ -89,12 +94,15 @@ describe("worker context database tests", () => {
         { role: "user", content: "One coffee please." },
         { role: "assistant", content: "Sure, would you like milk?" },
       ]);
+      expect(res.remainingSeconds).toBe(300);
     }
   });
 
   it("returns 'Session not found.' if sessionId belongs to another learner", async () => {
     const learner1 = await insertProfile();
     const learner2 = await insertProfile();
+    await setVoiceConsent(db, learner1.learnerId, true);
+    await setVoiceConsent(db, learner2.learnerId, true);
     const session1 = await startSession(db, {
       learnerId: learner1.learnerId,
       mode: "conversation",
@@ -111,6 +119,7 @@ describe("worker context database tests", () => {
 
   it("returns 'Session not found.' for an ended session", async () => {
     const profile = await insertProfile();
+    await setVoiceConsent(db, profile.learnerId, true);
     const session = await startSession(db, {
       learnerId: profile.learnerId,
       mode: "conversation",
@@ -124,5 +133,29 @@ describe("worker context database tests", () => {
       new Date(),
     );
     expect(res).toEqual({ error: "Session not found." });
+  });
+
+  it("returns error for a learner without consent", async () => {
+    const profile = await insertProfile();
+    const res = await loadVoiceContext(
+      db,
+      { learnerId: profile.learnerId, scenarioId: "cafe", sessionId: null },
+      new Date(),
+    );
+    expect(res).toEqual({ error: "No voice consent." });
+  });
+
+  it("returns error for a consented learner with 300 s recorded today", async () => {
+    const profile = await insertProfile();
+    await setVoiceConsent(db, profile.learnerId, true);
+    const now = new Date();
+    await recordVoiceSeconds(db, profile.learnerId, 300, now);
+
+    const res = await loadVoiceContext(
+      db,
+      { learnerId: profile.learnerId, scenarioId: "cafe", sessionId: null },
+      now,
+    );
+    expect(res).toEqual({ error: "No voice time left today." });
   });
 });
