@@ -17,6 +17,8 @@ import {
   REPLY_TURN_ID_ATTRIBUTE,
   SESSION_ID_ATTRIBUTE,
 } from "@/lib/live-voice";
+import { summarizePhrases } from "@/lib/pronunciation-score";
+import { savePronunciationScore } from "@/lib/pronunciation-store";
 import { saveExchange, startSession } from "@/lib/sessions";
 import { loadVoiceContext } from "./context";
 import {
@@ -33,6 +35,19 @@ import {
   type VoiceExchange,
 } from "./job";
 import { startVoiceMeter, type VoiceLimit } from "./meter";
+import {
+  assessScripted,
+  azureConfigFromEnv,
+  ScoringAgent,
+  type AzureConfig,
+} from "./pronunciation";
+import {
+  concatPcm,
+  pcmDurationMs,
+  SCORING_DRAIN_MS,
+  shouldScore,
+  TurnAudioBuffer,
+} from "./turn-audio";
 
 // LiveKit reports latencies in seconds.
 function ms(seconds: number | undefined): string {
@@ -55,6 +70,15 @@ export default defineAgent({
       console.error(`Could not load voice context: ${context.error}`);
       return;
     }
+
+    const azure = azureConfigFromEnv();
+    if (!azure) {
+      console.log(
+        "[voice] pronunciation scoring off: AZURE_SPEECH_KEY or AZURE_SPEECH_REGION is not set",
+      );
+    }
+    // The learner's audio for scoring, in memory only (doc/voice-worker.md, Pronunciation).
+    const turnAudio = azure ? new TurnAudioBuffer() : null;
 
     const chatCtx = llm.ChatContext.empty();
     for (const turn of context.history) {
@@ -79,9 +103,12 @@ export default defineAgent({
     let sessionId = context.sessionId;
     const collector = new ExchangeCollector();
     let saving = Promise.resolve();
+    let scoring = Promise.resolve();
+    let pendingAudio: Int16Array[] = [];
     let lastEndOfTurnDelay: number | undefined;
 
-    const save = async (exchange: VoiceExchange) => {
+    // Returns the session the exchange was saved into, or null when saving failed.
+    const save = async (exchange: VoiceExchange, userTurnId: string): Promise<string | null> => {
       try {
         if (!sessionId) {
           const created = await startSession(db, {
@@ -102,14 +129,66 @@ export default defineAgent({
           inputMode: "voice",
           replyText: exchange.replyText,
           replyTurnId,
+          userTurnId,
           firstTokenMs: exchange.firstTokenMs ?? 0,
         });
         // Lets the browser attach its latency measurement to this reply (hooks/useLiveVoice.ts).
         ctx.room.localParticipant
           ?.setAttributes({ [REPLY_TURN_ID_ATTRIBUTE]: replyTurnId })
           .catch((error: unknown) => console.error("Could not announce the reply turn id:", error));
+        return sessionId;
       } catch (error) {
         console.error("Could not save exchange:", error);
+        return null;
+      }
+    };
+
+    const score = async (
+      config: AzureConfig,
+      scoredSessionId: string,
+      turnId: string,
+      userText: string,
+      pcm: Int16Array,
+    ) => {
+      const startedAt = performance.now();
+      try {
+        const phrases = await assessScripted(pcm, userText, config);
+        if (phrases.length === 0) {
+          console.log("[voice] pronunciation: nothing recognized");
+          return;
+        }
+        const audioMs = pcmDurationMs(pcm.length);
+        const scores = summarizePhrases(phrases);
+        await savePronunciationScore(db, {
+          turnId,
+          sessionId: scoredSessionId,
+          learnerId: job.learnerId,
+          audioMs,
+          ...scores,
+        });
+        console.log(
+          `[voice] pronunciation: ${audioMs} ms scored in ${Math.round(performance.now() - startedAt)} ms, accuracy ${scores.accuracy ?? "n/a"}, ${scores.mismatches.length} mismatches`,
+        );
+      } catch (error) {
+        console.error("Could not score pronunciation:", error);
+      }
+    };
+
+    // Saves the exchange, then scores its learner turn on a separate chain that no reply waits for.
+    const emit = (exchange: VoiceExchange) => {
+      const userTurnId = crypto.randomUUID();
+      const audio = concatPcm(pendingAudio);
+      pendingAudio = [];
+
+      const saved = saving.then(() => save(exchange, userTurnId));
+      saving = saved.then(() => undefined);
+
+      if (azure && shouldScore(exchange.userText, pcmDurationMs(audio.length))) {
+        scoring = scoring.then(async () => {
+          const savedSessionId = await saved;
+          if (!savedSessionId) return;
+          await score(azure, savedSessionId, userTurnId, exchange.userText, audio);
+        });
       }
     };
 
@@ -118,7 +197,18 @@ export default defineAgent({
       if (item.type !== "message" || !item.role) return;
 
       // LiveKit puts the end-of-turn delay on the learner's message, the rest on the reply.
-      if (item.role === "user") lastEndOfTurnDelay = item.metrics?.endOfTurnDelay;
+      if (item.role === "user") {
+        lastEndOfTurnDelay = item.metrics?.endOfTurnDelay;
+        if (turnAudio) {
+          // LiveKit gives the speaking times in seconds.
+          const { startedSpeakingAt, stoppedSpeakingAt } = item.metrics ?? {};
+          const audio = turnAudio.take(
+            startedSpeakingAt === undefined ? undefined : startedSpeakingAt * 1000,
+            stoppedSpeakingAt === undefined ? undefined : stoppedSpeakingAt * 1000,
+          );
+          if (audio.length > 0) pendingAudio.push(audio);
+        }
+      }
       if (item.role === "assistant") {
         const { llmNodeTtft, ttsNodeTtfb, e2eLatency } = item.metrics ?? {};
         console.log(
@@ -132,9 +222,7 @@ export default defineAgent({
         llmTtftSeconds: item.metrics?.llmNodeTtft,
       });
 
-      if (exchange) {
-        saving = saving.then(() => save(exchange));
-      }
+      if (exchange) emit(exchange);
     });
 
     let meter: ReturnType<typeof startVoiceMeter> | null = null;
@@ -142,14 +230,24 @@ export default defineAgent({
       // Records the session's last seconds before the final save.
       await meter?.stop();
       const flushed = collector.flush();
-      if (flushed) {
-        saving = saving.then(() => save(flushed));
-      }
+      if (flushed) emit(flushed);
       await saving;
+
+      // Gives turns still being scored a little time, without holding the shutdown up for long.
+      let drainTimer: NodeJS.Timeout | undefined;
+      await Promise.race([
+        scoring,
+        new Promise<void>((resolve) => {
+          drainTimer = setTimeout(resolve, SCORING_DRAIN_MS);
+        }),
+      ]);
+      clearTimeout(drainTimer);
     });
 
     await session.start({
-      agent: new voice.Agent({ instructions: context.instructions, chatCtx }),
+      agent: turnAudio
+        ? new ScoringAgent({ instructions: context.instructions, chatCtx }, turnAudio)
+        : new voice.Agent({ instructions: context.instructions, chatCtx }),
       room: ctx.room,
       // Turns off LiveKit's default recording: it writes session audio to disk and uploads audio,
       // transcript and traces to LiveKit Cloud. Fluency stores no raw audio (doc/voice-path.md).

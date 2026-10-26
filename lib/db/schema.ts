@@ -20,6 +20,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { FeedbackItem, VocabularyItem } from "../feedback";
+import type { PhonemeMismatch, WeakWord } from "../pronunciation-score";
 
 // Learner model and FSRS schema. Based on the research schema, with the changes in
 // doc/roadmap.md (Phase 2): nullable user_id for login, sessions/turns, and voice_usage.
@@ -282,9 +283,36 @@ export const voiceUsage = pgTable(
   ],
 );
 
+// 9. Azure pronunciation scores for live voice learner turns. The audio itself is never stored.
+export const pronunciationScores = pgTable(
+  "pronunciation_scores",
+  {
+    // The learner's turn in session_turns.
+    turnId: uuid("turn_id")
+      .primaryKey()
+      .references(() => sessionTurns.turnId, { onDelete: "cascade" }),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => sessions.sessionId, { onDelete: "cascade" }),
+    learnerId: learnerRef(),
+    // Length of the audio sent to Azure.
+    audioMs: integer("audio_ms").notNull(),
+    accuracy: doublePrecision("accuracy"),
+    fluency: doublePrecision("fluency"),
+    prosody: doublePrecision("prosody"),
+    completeness: doublePrecision("completeness"),
+    pronScore: doublePrecision("pron_score"),
+    weakWords: jsonb("weak_words").$type<WeakWord[]>().notNull().default([]),
+    mismatches: jsonb("mismatches").$type<PhonemeMismatch[]>().notNull().default([]),
+    ...timestamps,
+  },
+  (table) => [index("idx_pronunciation_scores_session").on(table.sessionId)],
+);
+
 export type LearnerProfile = typeof learnerProfiles.$inferSelect;
 export type NewLearnerProfile = typeof learnerProfiles.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type SessionTurn = typeof sessionTurns.$inferSelect;
 export type SessionFeedback = typeof sessionFeedback.$inferSelect;
 export type FsrsCard = typeof fsrsCards.$inferSelect;
+export type PronunciationScoreRow = typeof pronunciationScores.$inferSelect;

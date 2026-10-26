@@ -6,53 +6,26 @@ import { basename, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { BN_EN_PRONUNCIATION_PATTERNS, findPattern } from "../../lib/pronunciation-patterns.ts";
+import {
+  phonemeMismatches,
+  weakWords,
+  type PhonemeMismatch as Mismatch,
+  type PhraseResult,
+} from "../../lib/pronunciation-score.ts";
 import { percentile } from "./ttft.ts";
+
+export { phonemeMismatches, weakWords } from "../../lib/pronunciation-score.ts";
+export type {
+  PhonemeMismatch as Mismatch,
+  PhonemeResult,
+  PhraseResult,
+  WordResult,
+} from "../../lib/pronunciation-score.ts";
 
 // Node 26's global WebSocket fails against Azure (1006); make the SDK use its bundled `ws`.
 createRequire(import.meta.url)(
   "microsoft-cognitiveservices-speech-sdk/distrib/lib/src/common.browser/WebsocketMessageAdapter.js",
 ).WebsocketMessageAdapter.forceNpmWebSocket = true;
-
-export type PhonemeResult = {
-  Phoneme: string;
-  PronunciationAssessment?: {
-    AccuracyScore?: number;
-    NBestPhonemes?: { Phoneme: string; Score: number }[];
-  };
-};
-
-export type WordResult = {
-  Word: string;
-  PronunciationAssessment?: {
-    AccuracyScore?: number;
-    ErrorType?: string;
-    Feedback?: {
-      Prosody?: {
-        Break?: unknown;
-        Intonation?: unknown;
-      };
-    };
-  };
-  Syllables?: unknown[];
-  Phonemes?: PhonemeResult[];
-};
-
-export type PhraseResult = {
-  DisplayText: string;
-  Offset: number; // 100-ns units from the start of the audio
-  Duration: number; // 100-ns units
-  NBest: {
-    PronunciationAssessment?: Record<string, number>;
-    Words?: WordResult[];
-  }[];
-};
-
-export type Mismatch = {
-  word: string;
-  expected: string;
-  heard: string;
-  score: number;
-};
 
 export const READING_PARAGRAPH =
   "Last Friday my friend Zara and I visited the zoo near Mirpur. It was very busy, so we waited in the shade and drank some coffee. She showed me a video of seven white swans on the west lake. Then we took a bus from the station back to the city and bought a cake and a cup of tea for her brother. I think the weather was better than the weather this time last year. Wasn't it a lovely day?";
@@ -235,57 +208,6 @@ export function capabilities(phrases: PhraseResult[]): Record<string, boolean> {
   }
 
   return caps;
-}
-
-export function weakWords(
-  phrases: PhraseResult[],
-  below = 60,
-): { word: string; score: number; errorType: string }[] {
-  const result: { word: string; score: number; errorType: string }[] = [];
-  for (const phrase of phrases) {
-    const words = phrase.NBest?.[0]?.Words ?? [];
-    for (const w of words) {
-      const score = w.PronunciationAssessment?.AccuracyScore;
-      if (typeof score === "number" && score < below) {
-        result.push({
-          word: w.Word,
-          score,
-          errorType: w.PronunciationAssessment?.ErrorType ?? "",
-        });
-      }
-    }
-  }
-  return result;
-}
-
-export function phonemeMismatches(phrases: PhraseResult[], below = 60): Mismatch[] {
-  const mismatches: Mismatch[] = [];
-  for (const phrase of phrases) {
-    const words = phrase.NBest?.[0]?.Words ?? [];
-    for (const w of words) {
-      for (const p of w.Phonemes ?? []) {
-        const score = p.PronunciationAssessment?.AccuracyScore;
-        const nbest = p.PronunciationAssessment?.NBestPhonemes;
-        if (typeof score === "number" && score < below && nbest && nbest.length > 0) {
-          let top = nbest[0];
-          for (let i = 1; i < nbest.length; i++) {
-            if (nbest[i].Score > top.Score) {
-              top = nbest[i];
-            }
-          }
-          if (top.Phoneme !== p.Phoneme) {
-            mismatches.push({
-              word: w.Word,
-              expected: p.Phoneme,
-              heard: top.Phoneme,
-              score,
-            });
-          }
-        }
-      }
-    }
-  }
-  return mismatches;
 }
 
 export function catalogCoverage(

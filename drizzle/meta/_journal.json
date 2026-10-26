@@ -36,6 +36,13 @@
       "when": 1793010872074,
       "tag": "0004_live_voice_latency",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793022168817,
+      "tag": "0005_pronunciation_scores",
+      "breakpoints": true
     }
   ]
 }

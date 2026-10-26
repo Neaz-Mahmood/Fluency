@@ -138,6 +138,7 @@ export async function saveExchange(
     replyText: string;
     replyTurnId: string;
     firstTokenMs: number;
+    userTurnId?: string;
   },
 ): Promise<void> {
   await db.transaction(async (tx) => {
@@ -156,6 +157,7 @@ export async function saveExchange(
     const reply = exchange.replyText.trim();
     await tx.insert(sessionTurns).values([
       {
+        ...(exchange.userTurnId ? { turnId: exchange.userTurnId } : {}),
         sessionId: exchange.sessionId,
         position: next,
         role: "user",

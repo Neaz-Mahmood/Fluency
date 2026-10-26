@@ -278,6 +278,42 @@ describe("saveExchange", () => {
     });
   });
 
+  it("stores the custom user turn id on the user turn when provided", async () => {
+    const learnerId = await newLearner();
+    const { sessionId } = await startSession(db, {
+      learnerId,
+      mode: "conversation",
+      scenarioId: "cafe",
+    });
+    const userTurnId = crypto.randomUUID();
+    const replyTurnId = crypto.randomUUID();
+
+    await saveExchange(db, {
+      sessionId,
+      userText: "Hello there!",
+      inputMode: "voice",
+      replyText: "Hi!",
+      replyTurnId,
+      userTurnId,
+      firstTokenMs: 180,
+    });
+
+    const [userTurn] = await db
+      .select({
+        turnId: sessionTurns.turnId,
+        role: sessionTurns.role,
+        content: sessionTurns.content,
+      })
+      .from(sessionTurns)
+      .where(eq(sessionTurns.turnId, userTurnId));
+
+    expect(userTurn).toEqual({
+      turnId: userTurnId,
+      role: "user",
+      content: "Hello there!",
+    });
+  });
+
   it("saves only the learner's turn when the reply is empty", async () => {
     const learnerId = await newLearner();
     const { sessionId } = await startSession(db, {
