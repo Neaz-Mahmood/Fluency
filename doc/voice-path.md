@@ -121,7 +121,7 @@ Claude synthesized Gemma's mixed reply ("To go মানে হলো খাব�
 
 **Recommendation: Cartesia Sonic-3 through LiveKit Inference, with `language: "en"`.** Cartesia direct (with our own key) is the fallback, with the leading silence trimmed. Gradium stays an option only if Bangla is kept off the audio. The voice choice in FLU-62 (by CEFR level) uses Cartesia's voices.
 
-**Decided:** Cartesia Sonic-3 through LiveKit Inference, with spoken Bangla help. The voice is Katie. The user rates the other voices in FLU-62, when voices are chosen per level.
+**Decided:** Cartesia Sonic-3 through LiveKit Inference, with spoken Bangla help. The voice is Katie. The user listened to every `out/tts-ab/` voice (2026-10-26): Katie sounded best overall, and Cartesia said the Bangladeshi names and places clearly.
 
 ## Decision 4: pronunciation mode
 
