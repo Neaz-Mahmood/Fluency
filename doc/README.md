@@ -17,6 +17,7 @@ This directory documents the features that are built into Fluency, the spoken-En
 - [AI providers](./ai-providers.md) — Claude and Google Gemini streaming.
 - [Spoken replies](./spoken-replies.md) — sentence-chunked speech synthesis.
 - [Evaluation harness](./evaluation.md) — golden-set scoring and over-correction measurement.
+- [Voice path decision record](./voice-path.md) — Phase 4 voice path, live model, TTS and pronunciation mode (FLU-58).
 - [Out of scope](./out-of-scope.md) — features planned for later phases.
 - [Roadmap](./roadmap.md) — the 12-week plan for Phases 2–5.
 - [Status and next work](./status.md) — current health of the app and the ordered task list.

@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { AccessToken } from "livekit-server-sdk";
+
 import { CLAUDE_MODELS, OPENCODE_BASE_URL, streamClaudeReply } from "../../lib/anthropic.ts";
 
 export type Measurement = { firstTokenMs: number; totalMs: number };
@@ -182,17 +184,32 @@ function textFromChunk(payload: GeminiChunk): string {
     .join("");
 }
 
-function textFromSseLine(line: string): string {
+// The text of one SSE line's `data:` payload, or "" for anything else.
+function textFromSseLine(line: string, textFromData: (data: string) => string): string {
   const trimmed = line.trim();
   if (!trimmed.startsWith("data:")) return "";
   const data = trimmed.slice(5).trim();
   if (!data || data === "[DONE]") return "";
+  return textFromData(data);
+}
+
+function textFromGeminiData(data: string): string {
   return textFromChunk(JSON.parse(data) as GeminiChunk);
 }
 
-async function* readSse(response: Response): AsyncGenerator<string> {
+type ChatCompletionChunk = { choices?: Array<{ delta?: { content?: string | null } }> };
+
+export function textFromChatCompletionData(data: string): string {
+  const payload = JSON.parse(data) as ChatCompletionChunk;
+  return payload.choices?.[0]?.delta?.content ?? "";
+}
+
+async function* readSse(
+  response: Response,
+  textFromData: (data: string) => string,
+): AsyncGenerator<string> {
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("Google returned an empty stream.");
+  if (!reader) throw new Error("The provider returned an empty stream.");
 
   const decoder = new TextDecoder();
   let buffer = "";
@@ -201,7 +218,7 @@ async function* readSse(response: Response): AsyncGenerator<string> {
     const lines = block.split("\n");
     const remainder = lines.pop() ?? "";
     for (const line of lines) {
-      const text = textFromSseLine(line);
+      const text = textFromSseLine(line, textFromData);
       if (text) yield text;
     }
     return remainder;
@@ -216,7 +233,7 @@ async function* readSse(response: Response): AsyncGenerator<string> {
 
   buffer += decoder.decode();
   if (buffer.trim()) {
-    const text = textFromSseLine(buffer);
+    const text = textFromSseLine(buffer, textFromData);
     if (text) yield text;
   }
 }
@@ -252,8 +269,69 @@ export function streamGeminiReply(options: {
       throw new Error(`Google returned status ${response.status}`);
     }
 
-    yield* readSse(response);
+    yield* readSse(response, textFromGeminiData);
   })();
+}
+
+// LiveKit Inference serves LLMs through an OpenAI-compatible chat completions endpoint,
+// authenticated with a LiveKit access token that carries the inference grant.
+export const LIVEKIT_INFERENCE_URL = "https://agent-gateway.livekit.cloud/v1/chat/completions";
+
+// Candidates from LiveKit's LLM list: its recommended voice default, two Gemini Flash
+// tiers and two small OpenAI models. GPT-5.4 mini also runs at low reasoning effort,
+// which a voice turn needs no more than.
+export const LIVEKIT_MODELS: Array<{ model: string; reasoningEffort?: string }> = [
+  { model: "google/gemma-4-31b-it" },
+  { model: "google/gemini-3.5-flash-lite" },
+  { model: "google/gemini-3.8-flash" },
+  { model: "openai/gpt-4.1-mini" },
+  { model: "openai/gpt-5.4-mini" },
+  { model: "openai/gpt-5.4-mini", reasoningEffort: "low" },
+];
+
+export function streamLiveKitReply(options: {
+  token: string;
+  model: string;
+  reasoningEffort?: string;
+  system: string;
+  user: string;
+  signal?: AbortSignal;
+}): AsyncIterable<string> {
+  return (async function* () {
+    const response = await fetch(LIVEKIT_INFERENCE_URL, {
+      method: "POST",
+      signal: options.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${options.token}`,
+      },
+      body: JSON.stringify({
+        model: options.model,
+        stream: true,
+        max_completion_tokens: 300,
+        ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}),
+        messages: [
+          { role: "system", content: options.system },
+          { role: "user", content: options.user },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`LiveKit returned status ${response.status}`);
+    }
+
+    yield* readSse(response, textFromChatCompletionData);
+  })();
+}
+
+// `--only livekit` keeps the candidates whose route or label contains the text.
+export function parseOnly(argv: string[]): string | null {
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--only" && i + 1 < argv.length) return argv[i + 1];
+    if (argv[i].startsWith("--only=")) return argv[i].slice("--only=".length);
+  }
+  return null;
 }
 
 export function parseRuns(argv: string[]): number {
@@ -353,15 +431,38 @@ async function main(): Promise<void> {
     console.log("Skipping Gemini: set GOOGLE_API_KEY or GEMINI_API_KEY.");
   }
 
+  const livekitKey = process.env.LIVEKIT_API_KEY;
+  const livekitSecret = process.env.LIVEKIT_API_SECRET;
+  if (livekitKey && livekitSecret) {
+    const at = new AccessToken(livekitKey, livekitSecret, { identity: "voice-ttft", ttl: 3600 });
+    at.addInferenceGrant({ perform: true });
+    const token = await at.toJwt();
+    for (const { model, reasoningEffort } of LIVEKIT_MODELS) {
+      candidates.push({
+        label: reasoningEffort ? `${model} (${reasoningEffort})` : model,
+        route: "livekit",
+        stream: (system, user, signal) =>
+          streamLiveKitReply({ token, model, reasoningEffort, system, user, signal }),
+      });
+    }
+  } else {
+    console.log("Skipping LiveKit Inference: set LIVEKIT_API_KEY and LIVEKIT_API_SECRET.");
+  }
+
   if (candidates.length === 0) {
     console.error("No candidate models could run. Please set API keys.");
     process.exitCode = 2;
     return;
   }
 
+  const only = parseOnly(process.argv.slice(2));
+  const selected = only
+    ? candidates.filter((c) => c.route.includes(only) || c.label.includes(only))
+    : candidates;
+
   const rows: Row[] = [];
 
-  for (const candidate of candidates) {
+  for (const candidate of selected) {
     console.log(`Benchmarking ${candidate.label} via ${candidate.route}...`);
 
     // One warm-up call (not recorded)

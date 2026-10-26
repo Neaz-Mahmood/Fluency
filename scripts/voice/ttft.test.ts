@@ -4,12 +4,14 @@ import {
   CALL_TIMEOUT_MS,
   formatTable,
   measure,
+  parseOnly,
   parseRuns,
   percentile,
   summarize,
   type Row,
   type Stream,
   SYSTEM_PROMPT,
+  textFromChatCompletionData,
   TURNS,
 } from "./ttft.ts";
 
@@ -191,5 +193,19 @@ describe("fixtures and options", () => {
     expect(parseRuns(["--runs", "5"])).toBe(5);
     expect(parseRuns(["--runs=3"])).toBe(3);
     expect(parseRuns(["--runs", "invalid"])).toBe(10);
+  });
+
+  it("parses --only argument", () => {
+    expect(parseOnly([])).toBeNull();
+    expect(parseOnly(["--only", "livekit"])).toBe("livekit");
+    expect(parseOnly(["--runs", "5", "--only=google"])).toBe("google");
+  });
+});
+
+describe("textFromChatCompletionData", () => {
+  it("reads the delta text and ignores role-only and usage chunks", () => {
+    expect(textFromChatCompletionData('{"choices":[{"delta":{"content":"Hi"}}]}')).toBe("Hi");
+    expect(textFromChatCompletionData('{"choices":[{"delta":{"role":"assistant"}}]}')).toBe("");
+    expect(textFromChatCompletionData('{"choices":[],"usage":{"total_tokens":9}}')).toBe("");
   });
 });

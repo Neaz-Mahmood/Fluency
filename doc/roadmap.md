@@ -177,8 +177,8 @@ These are choices the plan doesn't make. Each one needs an owner before the phas
 | Postgres host and database library (ORM or migration tool) | Any managed option that works with Next.js | Phase 2, week 1 |
 | Auth library (must support email/password, Google and the chosen database) | Chosen when Phase 5 login starts | Phase 5, week 12 |
 | Transactional email service (verification and password reset) | Chosen with the auth library | Phase 5, week 12 |
-| Voice path | LiveKit Agents worker, Deepgram Flux through LiveKit Inference (no Deepgram account) | Phase 4, week 7 |
-| Text-to-speech vendor | Decided by the week 7 A/B test | Phase 4, week 7 |
+| Voice path | Decided 2026-10-26 ([voice-path.md](./voice-path.md)): LiveKit Agents worker on LiveKit Cloud, Deepgram Flux and Gemma 4 31B through LiveKit Inference | Phase 4, week 7 |
+| Text-to-speech vendor | Decided 2026-10-26 ([voice-path.md](./voice-path.md)): Cartesia Sonic-3 through LiveKit Inference, because it can speak the Bangla help | Phase 4, week 7 |
 
 ## Notes
 
