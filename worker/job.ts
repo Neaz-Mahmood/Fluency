@@ -2,8 +2,13 @@ import { isUuid } from "@/lib/learner-id";
 import type { CefrLevel } from "@/lib/placement";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
 
-// Dispatched by task 10's token route.
-export const AGENT_NAME = "fluency-tutor";
+// The name the worker registers under and the token route dispatches to (FLU-98). Each place
+// that runs a worker sets its own: fluency-tutor-dev on a laptop, fluency-tutor in production.
+// A local worker then never takes a production session. There's no default, so a missing name
+// stops the worker and turns live voice off instead of routing sessions to the wrong worker.
+export function agentName(env: Record<string, string | undefined> = process.env): string | null {
+  return env.VOICE_AGENT_NAME?.trim() || null;
+}
 
 // Deepgram Flux through LiveKit Inference; see doc/voice-path.md (Decision 1).
 export const STT_MODEL = "deepgram/flux-general-en";

@@ -8,18 +8,19 @@ import { isUuid } from "@/lib/learner-id";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
 import { findOpenSession } from "@/lib/sessions";
 import { remainingVoiceSeconds } from "@/lib/voice-quota";
-import { AGENT_NAME, type VoiceJob } from "@/worker/job";
+import { agentName, type VoiceJob } from "@/worker/job";
 
 export function liveVoiceConfig(
   env: Record<string, string | undefined> = process.env,
-): { url: string; apiKey: string; apiSecret: string } | null {
+): { url: string; apiKey: string; apiSecret: string; agentName: string } | null {
   const url = env.LIVEKIT_URL?.trim();
   const apiKey = env.LIVEKIT_API_KEY?.trim();
   const apiSecret = env.LIVEKIT_API_SECRET?.trim();
-  if (!url || !apiKey || !apiSecret) {
+  const name = agentName(env);
+  if (!url || !apiKey || !apiSecret || !name) {
     return null;
   }
-  return { url, apiKey, apiSecret };
+  return { url, apiKey, apiSecret, agentName: name };
 }
 
 export function parseVoiceTokenRequest(
@@ -95,7 +96,7 @@ export function voiceRoomName(): string {
 export const LEARNER_IDENTITY = "learner";
 
 export async function createVoiceToken(
-  config: { apiKey: string; apiSecret: string },
+  config: { apiKey: string; apiSecret: string; agentName: string },
   room: string,
   job: VoiceJob,
 ): Promise<string> {
@@ -118,7 +119,7 @@ export async function createVoiceToken(
   token.roomConfig = new RoomConfiguration({
     agents: [
       new RoomAgentDispatch({
-        agentName: AGENT_NAME,
+        agentName: config.agentName,
         metadata: JSON.stringify(job),
       }),
     ],

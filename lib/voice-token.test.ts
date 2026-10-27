@@ -7,7 +7,7 @@ import {
   parseVoiceTokenRequest,
   voiceRoomName,
 } from "@/lib/voice-token";
-import { AGENT_NAME, parseJobMetadata, type VoiceJob } from "@/worker/job";
+import { agentName, parseJobMetadata, type VoiceJob } from "@/worker/job";
 
 describe("liveVoiceConfig", () => {
   it("returns config when all environment variables are set", () => {
@@ -15,12 +15,26 @@ describe("liveVoiceConfig", () => {
       LIVEKIT_URL: "https://fluency.livekit.cloud",
       LIVEKIT_API_KEY: "API_KEY_123",
       LIVEKIT_API_SECRET: "API_SECRET_456",
+      VOICE_AGENT_NAME: " fluency-tutor-dev ",
     };
     expect(liveVoiceConfig(env)).toEqual({
       url: "https://fluency.livekit.cloud",
       apiKey: "API_KEY_123",
       apiSecret: "API_SECRET_456",
+      agentName: "fluency-tutor-dev",
     });
+  });
+
+  // No default name: without one, live voice is off rather than routed to another worker (FLU-98).
+  it("returns null when the agent name is missing", () => {
+    const env = {
+      LIVEKIT_URL: "https://fluency.livekit.cloud",
+      LIVEKIT_API_KEY: "API_KEY_123",
+      LIVEKIT_API_SECRET: "API_SECRET_456",
+    };
+    expect(liveVoiceConfig(env)).toBeNull();
+    expect(agentName(env)).toBeNull();
+    expect(agentName({ VOICE_AGENT_NAME: "  " })).toBeNull();
   });
 
   it("returns null when one environment variable is missing", () => {
@@ -104,6 +118,7 @@ describe("createVoiceToken", () => {
     const config = {
       apiKey: "fake-api-key",
       apiSecret: "fake-secret-at-least-32-characters-long!!",
+      agentName: "fluency-tutor-test",
     };
     const room = voiceRoomName();
     const job: VoiceJob = {
@@ -124,7 +139,7 @@ describe("createVoiceToken", () => {
     expect(payload.video.canPublishSources).toEqual(["microphone"]);
     expect(payload.video.canPublishData).toBe(false);
 
-    expect(payload.roomConfig?.agents?.[0]?.agentName).toBe(AGENT_NAME);
+    expect(payload.roomConfig?.agents?.[0]?.agentName).toBe("fluency-tutor-test");
 
     const verifiedJob = parseJobMetadata(payload.roomConfig.agents[0].metadata);
     expect(verifiedJob).toEqual(job);

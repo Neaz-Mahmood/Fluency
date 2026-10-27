@@ -22,7 +22,7 @@ import { savePronunciationScore } from "@/lib/pronunciation-store";
 import { saveExchange, startSession } from "@/lib/sessions";
 import { loadVoiceContext } from "./context";
 import {
-  AGENT_NAME,
+  agentName,
   EAGER_EOT_THRESHOLD,
   ExchangeCollector,
   LLM_MODEL,
@@ -337,4 +337,9 @@ export default defineAgent({
   },
 });
 
-cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME }));
+const name = agentName();
+if (!name) {
+  console.error("VOICE_AGENT_NAME is not set. Use fluency-tutor-dev locally (see .env.example).");
+  process.exit(1);
+}
+cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: name }));

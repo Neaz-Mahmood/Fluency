@@ -39,7 +39,7 @@ export type VoiceJob = {
 
 ### From the browser
 
-1. **Token route & access checks:** `POST /api/voice/token` verifies the learner's consent and today's quota (Dhaka time). If refused, it responds with 403 `consent`, 429 `quota`, or 404 `session`. When unavailable or unconfigured, it returns 503 `unavailable`. On success, it issues a signed token dispatched to `fluency-tutor` with 200 `{ url, token, remainingSeconds }`.
+1. **Token route & access checks:** `POST /api/voice/token` verifies the learner's consent and today's quota (Dhaka time). If refused, it responds with 403 `consent`, 429 `quota`, or 404 `session`. When unavailable or unconfigured, it returns 503 `unavailable`. On success, it issues a signed token dispatched to the worker named in `VOICE_AGENT_NAME` with 200 `{ url, token, remainingSeconds }`.
 2. **Session ID announcement:** When the worker creates a new session in Postgres upon saving the first exchange, it sets the `fluency.session_id` attribute on its participant. The browser adopts this session ID into URL search parameters (`?session=`) so page reloads and the "Finish and get feedback" flow preserve the conversation.
 3. **Transcript streams to turns:** All text arrives as text streams on the `lk.transcription` topic. The learner's speech arrives as streams with `lk.transcription_final: "false"` for interim updates and `"true"` for final turns. Agent replies arrive as deltas within a stream and are accumulated into an assistant turn in real-time.
 4. **Input exclusivity & fallback:** While live voice is active, the hold-to-talk button, hands-free toggle, and typed input are disabled to prevent conflicting inputs. When live voice is off, unavailable, or refused, Web Speech hold-to-talk and typing remain available as fallbacks.
@@ -203,6 +203,8 @@ The recap turns these rows into a pronunciation section after the session (FLU-6
 
 Run the worker:
 
+Both commands register under `VOICE_AGENT_NAME` and exit without it. On a laptop that's `fluency-tutor-dev` from `.env`, so a local worker only gets sessions from an app running with the same `.env`. Production is `fluency-tutor`, set as a secret on the deployed worker and in `.env.supabase` (FLU-98).
+
 ```bash
 # Development: registers with LiveKit Cloud from this machine
 pnpm voice:worker dev
@@ -242,7 +244,7 @@ Run migrations against Supabase with the URL from that file:
 node --env-file=.env.supabase -e "require('child_process').execFileSync('pnpm',['db:migrate'],{stdio:'inherit'})"
 ```
 
-`pnpm voice:call` reaches the deployed worker whenever no local `pnpm voice:worker dev` is registered under the same agent name. Its turns are saved to Supabase, so `--learner` must be a learner that exists there and has given voice consent. The test learner has `user_id` `flu67-smoke-test`.
+`pnpm voice:call` run with `.env.supabase` dispatches to `fluency-tutor`, the deployed worker. Its turns are saved to Supabase, so `--learner` must be a learner that exists there and has given voice consent. The test learner has `user_id` `flu67-smoke-test`.
 
 ## Notes
 

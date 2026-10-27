@@ -58,7 +58,7 @@ flowchart LR
 
 The reply streams back as plain text, token by token. The browser speaks it sentence by sentence with `speechSynthesis`, so audio starts before the reply is finished. `lib/reply-stream.ts` fails the request if the provider sends no first token within 20 s, or goes silent for 15 s once streaming.
 
-**Live voice turn.** `POST /api/voice/token` checks consent and the learner's remaining 300 s for the day, counted in Asia/Dhaka time. It then signs a LiveKit token that dispatches the `fluency-tutor` agent with the learner and scenario. In the room, the worker runs three stages through LiveKit Inference:
+**Live voice turn.** `POST /api/voice/token` checks consent and the learner's remaining 300 s for the day, counted in Asia/Dhaka time. It then signs a LiveKit token that dispatches the worker named in `VOICE_AGENT_NAME` (`fluency-tutor` in production) with the learner and scenario. In the room, the worker runs three stages through LiveKit Inference:
 
 1. **Deepgram Flux** transcribes the speech. It sends an early end-of-turn signal, and the worker uses that signal to start drafting a reply before the learner has certainly finished (preemptive generation).
 2. **Gemma 4 31B** writes the reply. It was chosen for the fastest time to first token, about 426 ms at p50.
@@ -155,6 +155,7 @@ Use `.env`, not `.env.local`: the `voice:*` scripts and the voice worker read on
 | `CLAUDE_API_KEY`, `GOOGLE_API_KEY` or `OPENCODE_API_KEY` | Chat, feedback, placement, writing | Set at least one. With only one set, Fluency uses that provider. With more than one, pick with `AI_PROVIDER=claude`, `google` or `opencode`. `ANTHROPIC_API_KEY` is accepted as the Claude key. |
 | `DATABASE_URL`                                           | Everything                         | The value in `.env.example` matches the local Docker database.                                                                                                                                  |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`   | Live voice                         | From your LiveKit Cloud project. The speech and language models run through LiveKit Inference with these keys, so there is no Deepgram key.                                                     |
+| `VOICE_AGENT_NAME`                                       | Live voice                         | The worker's name. Keep `fluency-tutor-dev` locally; only production uses `fluency-tutor`. Live voice is off without it.                                                                        |
 | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`                | Pronunciation scoring              | Use a region near Bangladesh, such as `southeastasia`. Without them, live voice works but turns aren't scored.                                                                                  |
 | `CARTESIA_API_KEY`, `GRADIUM_API_KEY`                    | `pnpm voice:tts-ab` only           | The text-to-speech A/B test. The app doesn't need them.                                                                                                                                         |
 
@@ -189,14 +190,14 @@ Live voice is real-time spoken conversation through LiveKit. The browser gets a 
 
 To use it locally:
 
-1. Set the `LIVEKIT_*` and `AZURE_*` variables in `.env`.
+1. Set the `LIVEKIT_*`, `VOICE_AGENT_NAME` and `AZURE_*` variables in `.env`.
 2. Start the worker in a second terminal. It registers with LiveKit Cloud from your machine:
    ```bash
    pnpm voice:worker dev
    ```
 3. In the app, agree to live voice in Settings, then press **Start live voice** on the Practice page.
 
-While a local `dev` worker is running, LiveKit can send sessions to it instead of the deployed worker, because both register under the same name (`fluency-tutor`). Stop it when you want to test the deployed one.
+The local worker and the app both use `VOICE_AGENT_NAME` from `.env` (`fluency-tutor-dev`). The deployed worker and the production app use `fluency-tutor`, so a worker on your machine never takes a production session. To test against the deployed worker, run the app with `.env.supabase`, which sets `fluency-tutor` (see Deployment).
 
 ### Voice scripts
 
@@ -224,11 +225,14 @@ The managed database is Supabase Postgres in Mumbai (`ap-south-1`). Connect thro
 
 The Supabase Data API is turned off. The app connects only as `postgres`, and the tables have no row-level security, so leave it off.
 
-Keep the Supabase URL in `.env.supabase` at the repo root. It's gitignored by the `.env*` rule, so `.env` can stay pointed at the local database. Percent-encode `@ : / ? # %` in the password.
+Keep the production settings in `.env.supabase` at the repo root: the Supabase URL and the deployed worker's name. It's gitignored by the `.env*` rule, so `.env` can stay pointed at the local database and the local worker. Percent-encode `@ : / ? # %` in the password.
 
 ```
 DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+VOICE_AGENT_NAME=fluency-tutor
 ```
+
+Variables from `--env-file` win over `.env`, so a command run with `.env.supabase` uses production's database and worker.
 
 To run migrations against Supabase, pass the URL in through the environment. `drizzle.config.ts` doesn't override a `DATABASE_URL` that is already set.
 
@@ -251,7 +255,7 @@ lk agent logs        # add --log-type=build for the build logs
 lk agent secrets     # list secret names
 ```
 
-The agent needs three secrets: `DATABASE_URL` (the Supabase pooler URL), `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`. LiveKit Cloud provides the `LIVEKIT_*` variables itself. To change the secrets, write them to a file outside the repo, one `KEY=value` per line. Then apply the file and delete it:
+The agent needs four secrets: `DATABASE_URL` (the Supabase pooler URL), `VOICE_AGENT_NAME=fluency-tutor`, `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`. Without `VOICE_AGENT_NAME` the worker exits at start, so set it before deploying a version that reads it. LiveKit Cloud provides the `LIVEKIT_*` variables itself. To change the secrets, write them to a file outside the repo, one `KEY=value` per line. Then apply the file and delete it:
 
 ```bash
 lk agent update-secrets --secrets-file /path/to/agent-secrets.env   # restarts the agent
@@ -263,7 +267,7 @@ To set up the agent from scratch, which creates a new `livekit.toml`:
 lk agent create --region ap-south --secrets-file /path/to/agent-secrets.env .
 ```
 
-To check a deploy end to end, stop any local `pnpm voice:worker dev`. Then run `pnpm voice:call` with a learner that exists in Supabase and has voice consent. The turns, voice usage and pronunciation scores should appear in Supabase.
+To check a deploy end to end, run `pnpm voice:call` with `.env.supabase` (so it dispatches to `fluency-tutor`) and a learner that exists in Supabase and has voice consent. The turns, voice usage and pronunciation scores should appear in Supabase.
 
 ### Web app
 

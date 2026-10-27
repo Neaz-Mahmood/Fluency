@@ -14,7 +14,7 @@ import { AccessToken, AgentDispatchClient } from "livekit-server-sdk";
 
 import { isUuid } from "@/lib/learner-id";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
-import { AGENT_NAME } from "@/worker/job";
+import { agentName } from "@/worker/job";
 
 const TOPIC_TRANSCRIPTION = "lk.transcription";
 const ATTRIBUTE_TRANSCRIPTION_FINAL = "lk.transcription_final";
@@ -170,8 +170,12 @@ async function main(): Promise<void> {
   const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
   const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 
-  if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
-    console.error("Missing LIVEKIT_URL, LIVEKIT_API_KEY, or LIVEKIT_API_SECRET in environment.");
+  const name = agentName();
+
+  if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !name) {
+    console.error(
+      "Missing LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET or VOICE_AGENT_NAME in environment.",
+    );
     process.exit(2);
   }
 
@@ -210,7 +214,7 @@ async function main(): Promise<void> {
 
   await new AgentDispatchClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET).createDispatch(
     room,
-    AGENT_NAME,
+    name,
     {
       metadata: JSON.stringify({ learnerId, scenarioId, sessionId }),
     },
