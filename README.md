@@ -4,6 +4,133 @@ A web app for practicing spoken English, built first for Bangla speakers. You pi
 
 What is built so far and what comes next: [doc/status.md](doc/status.md) and [doc/roadmap.md](doc/roadmap.md).
 
+## Architecture
+
+Fluency has two runtimes that share one Postgres database:
+
+- **The Next.js app** serves the pages, streams typed and browser-speech conversation turns, and runs the language-model work after each session: feedback, the tutor note, placement, review sentences and the writing coach.
+- **The voice worker** (`worker/main.ts`) is a long-running LiveKit Agents process on LiveKit Cloud. It joins a learner's WebRTC room and runs the real-time speech loop.
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI["React 19 UI<br/>Web Speech STT/TTS"]
+    LV["livekit-client<br/>mic + playback"]
+  end
+
+  subgraph Next["Next.js 16 app"]
+    PX["proxy.ts<br/>anonymous learner cookie"]
+    CHAT["POST /api/chat<br/>streaming reply"]
+    TOK["POST /api/voice/token<br/>consent + quota check"]
+    ACT["Server actions + after()<br/>feedback, summary, review, writing"]
+  end
+
+  subgraph LK["LiveKit Cloud (ap-south)"]
+    SFU["WebRTC media server"]
+    W["Voice worker<br/>LiveKit Agents, Node"]
+    INF["LiveKit Inference<br/>Deepgram Flux → Gemma 4 31B → Cartesia Sonic-3"]
+  end
+
+  LLM["Claude (Anthropic / OpenCode)<br/>or Gemini"]
+  AZ["Azure Speech<br/>pronunciation assessment"]
+  DB[("Postgres<br/>Supabase, ap-south-1")]
+
+  UI --> PX --> CHAT --> LLM
+  UI --> ACT --> LLM
+  UI --> TOK
+  LV <-->|audio, transcripts| SFU <--> W
+  W <--> INF
+  W -->|learner audio, in memory| AZ
+  CHAT --> DB
+  ACT --> DB
+  TOK --> DB
+  W --> DB
+```
+
+### How a turn moves through the system
+
+**Typed or browser-speech turn.** Chrome's Web Speech API turns speech into text in the browser, or the learner types. `POST /api/chat` validates the request (`lib/chat-request.ts`) and loads the session's saved turns from Postgres. It then builds a system prompt from:
+
+- the scenario;
+- the learner's CEFR level and native language;
+- a private tutor note of at most 700 characters, rebuilt after each session;
+- the learner's due flashcards and recent mistakes.
+
+The reply streams back as plain text, token by token. The browser speaks it sentence by sentence with `speechSynthesis`, so audio starts before the reply is finished. `lib/reply-stream.ts` fails the request if the provider sends no first token within 20 s, or goes silent for 15 s once streaming.
+
+**Live voice turn.** `POST /api/voice/token` checks consent and the learner's remaining 300 s for the day, counted in Asia/Dhaka time. It then signs a LiveKit token that dispatches the `fluency-tutor` agent with the learner and scenario. In the room, the worker runs three stages through LiveKit Inference:
+
+1. **Deepgram Flux** transcribes the speech. It sends an early end-of-turn signal, and the worker uses that signal to start drafting a reply before the learner has certainly finished (preemptive generation).
+2. **Gemma 4 31B** writes the reply. It was chosen for the fastest time to first token, about 426 ms at p50.
+3. **Cartesia Sonic-3** speaks the reply. Its speaking speed follows the learner's CEFR level.
+
+Each exchange is saved to the same tables as text chat, on a serial promise chain so turns stay in order. A meter writes connected time to `voice_usage` every 15 s. When the time runs out, the worker lets the current reply finish, says goodbye and closes the room.
+
+**Pronunciation, off the critical path.** The worker splits the learner's audio into two copies (`tee()`): one goes to Flux, the other into a 60 s in-memory buffer at 16 kHz. Once Flux's final transcript arrives, the worker cuts that turn's audio out of the buffer and sends it to Azure for scripted assessment, with the transcript as the reference text. Nothing on the reply path waits for this. The scores and phoneme mismatches are saved; the audio is dropped and never stored.
+
+**After the session.** "Finish and get feedback" schedules the feedback job with Next.js `after()`, so the response isn't held up. The feedback model makes precision-first corrections, which means a sentence is only flagged when it is really wrong. It also suggests more natural phrasing and picks up to five vocabulary items, with explanations in the learner's native language. The results become recurring error patterns, and the learner can save them as flashcards.
+
+**Review.** Cards are scheduled with FSRS (`ts-fsrs`). For each review, the conversation model writes a fresh fill-in-the-blank sentence. The rating comes from the answer: wrong gives Again, close gives Hard, and a correct answer gives Easy, Good or Hard depending on how fast it was. The speed thresholds adapt to the learner after 30 reviews.
+
+### Technology
+
+| Layer             | Technology                                                                                                                    | Why                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web app           | Next.js 16 (App Router, Cache Components / partial prerendering, `proxy.ts`, server actions, `after()`), React 19, TypeScript | Each page serves a static shell and streams in the learner's data. Server actions and `after()` run the model work after a response, with no separate job queue yet.                            |
+| UI                | Tailwind CSS 4, shadcn/ui on Base UI, lucide icons                                                                            | Accessible primitives and design tokens (`DESIGN.md`). The interface is in English and Bangla (`lib/messages.ts`).                                                                              |
+| Conversation AI   | Claude Sonnet 5.5 (Anthropic API or OpenCode), Gemini 3.8 Flash                                                               | Picked by env var behind one `AsyncIterable<string>` interface (`lib/provider.ts`, `lib/ai.ts`).                                                                                                |
+| Feedback AI       | Claude Opus 5.5                                                                                                               | Corrections need precision more than speed. The eval measures over-correction directly.                                                                                                         |
+| Browser speech    | Web Speech API (recognition and synthesis)                                                                                    | Free and instant, and the fallback whenever live voice is off or unavailable.                                                                                                                   |
+| Real-time voice   | LiveKit Cloud (WebRTC), LiveKit Agents for Node                                                                               | One vendor for transport, worker hosting and inference. The worker sits next to the model gateways, not in Dhaka.                                                                               |
+| Speech models     | Deepgram Flux (STT), Gemma 4 31B (LLM), Cartesia Sonic-3 (TTS), all through LiveKit Inference                                 | Each was chosen by measurement: Flux's early end-of-turn signal, Gemma's time to first token, and Cartesia's ability to speak the Bangla help clearly ([doc/voice-path.md](doc/voice-path.md)). |
+| Pronunciation     | Azure Speech pronunciation assessment (scripted mode)                                                                         | Gives phoneme-level scores. Scripted mode on the Flux transcript avoids the misrecognitions that unscripted mode then marked as mispronounced.                                                  |
+| Database          | PostgreSQL (Supabase in production, Docker locally), Drizzle ORM, postgres.js                                                 | Typed schema and SQL migrations in `drizzle/`. The Session pooler keeps the database reachable over IPv4 from LiveKit Cloud.                                                                    |
+| Spaced repetition | ts-fsrs (FSRS-6)                                                                                                              | Modern scheduling, with per-learner parameters stored for later tuning.                                                                                                                         |
+| Validation        | Typed parsers (`parseChatRequest`, `parseFeedback`, `parseJobMetadata`)                                                       | Request bodies, model JSON output and job metadata are checked before use, and each parser has unit tests.                                                                                      |
+| Testing           | Vitest (a `unit` project and a `db` project against a real `fluency_test` database), `pnpm eval`                              | Database code is tested against Postgres, not mocks. The eval scores the corrector on 200 Bangla-speaker sentences.                                                                             |
+| Deployment        | Docker image of the worker on LiveKit Cloud `ap-south`, Supabase `ap-south-1` (both in Mumbai)                                | The worker and database are in the same region, close to Bangladesh.                                                                                                                            |
+
+### Data model
+
+The schema is in `lib/db/schema.ts`, with nine tables:
+
+- `learner_profiles`: language pair, CEFR levels in four skills, FSRS parameters, the tutor note, and voice consent.
+- `sessions` and `session_turns`: transcripts, including how each turn was input and its latency fields.
+- `session_feedback`: the corrections and vocabulary for a session's recap.
+- `learner_error_patterns`: recurring grammar and pronunciation errors.
+- `fsrs_cards` and `fsrs_review_logs`: flashcards and every review.
+- `voice_usage`: the daily live voice seconds.
+- `pronunciation_scores`: one row per scored live voice turn.
+
+### Engineering constraints
+
+- **Latency is measured, not assumed.** Every assistant turn records server time to first token and client time to first audio. Live voice is held to a gate measured in the browser: p50 under 750 ms and p90 under 950 ms from the end of the learner's speech to the first audible reply. The browser detects both moments from audio levels, and `pnpm voice:latency` reports against the gate. The first deployed worker logged about 1.6 s end to end on a warm turn, so this work is ongoing.
+- **No raw audio is kept.** The worker runs with recording off. The audio used for pronunciation lives in memory only until its turn is scored. Only transcripts and scores are saved.
+- **A daily cost cap.** Live voice is limited to 5 minutes a day per learner, reset at midnight Bangladesh time. The token route checks it, and the worker meters it and stops the session at the limit.
+- **Corrections must not over-correct.** `pnpm eval` runs the real feedback prompt against a golden set and reports how often it flags error-free sentences. The latest run flagged 0 of 100 error-free sentences, with an edit F0.5 of 0.953.
+- **Designed for Bangla speakers first.**
+  - The interface and explanations can be in Bangla.
+  - A catalog of Bangla-speaker pronunciation patterns (`lib/pronunciation-patterns.ts`) covers sounds such as /v/ → [b] and /w/ → [v].
+  - The text-to-speech voice was chosen because it reads the mixed English and Bangla help clearly.
+- **Graceful fallbacks.** If live voice is unavailable, refused or out of time, the learner can still use browser speech and typing. If Azure isn't configured, the worker skips scoring. If a provider fails, the learner gets a clear 502, 503 or 504 message instead of a broken stream.
+- **Anonymous until Phase 5.** `proxy.ts` gives each browser an anonymous learner ID in a cookie, and Settings has "Delete my data". Login comes in Phase 5.
+
+### Repository layout
+
+```
+app/          Next.js routes: practice, placement, history, review, write, settings, api/chat, api/voice/token
+components/   React components (Conversation, Recap, ScenarioPicker, UI primitives)
+hooks/        Client state machines: useConversation (Web Speech loop), useLiveVoice (LiveKit)
+lib/          Server and shared logic: prompts, providers, sessions, feedback, FSRS, quota, pronunciation
+lib/db/       Drizzle schema
+drizzle/      SQL migrations
+worker/       LiveKit Agents voice worker and its database helpers
+scripts/      eval harness and voice benchmarks (TTFT, TTS A/B, Azure, call, latency)
+doc/          Feature docs, decision records, roadmap and status
+```
+
+Each feature has its own page in [doc/](doc/README.md).
+
 ## Requirements
 
 - Node.js 26 (the voice worker runs TypeScript directly with Node's type stripping)
