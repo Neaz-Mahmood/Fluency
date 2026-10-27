@@ -5,8 +5,24 @@ import postgres from "postgres";
 
 import * as schema from "@/lib/db/schema";
 
+// Connection settings for a database URL (FLU-100).
+// - Supabase's transaction pooler (port 6543) gives each transaction to whichever server
+//   connection is free, so prepared statements can't be reused there.
+// - DATABASE_POOL_MAX caps connections per process. Serverless functions set it to 1, because
+//   every instance holds its own pool and the pooler's connection limit is shared.
+export function connectionOptions(
+  url: string,
+  env: Record<string, string | undefined> = process.env,
+) {
+  const max = Number.parseInt(env.DATABASE_POOL_MAX ?? "", 10);
+  return {
+    max: Number.isInteger(max) && max > 0 ? max : 10,
+    prepare: new URL(url).port !== "6543",
+  };
+}
+
 export function createDb(url: string) {
-  return drizzle(postgres(url, { max: 10 }), { schema });
+  return drizzle(postgres(url, connectionOptions(url)), { schema });
 }
 
 export type Db = ReturnType<typeof createDb>;

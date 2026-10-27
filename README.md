@@ -230,7 +230,7 @@ GitHub Actions runs three workflows from `.github/workflows/`:
 Secrets, set in the repository's Settings → Secrets and variables → Actions:
 
 - `OPENCODE_API_KEY` (repository secret) for `Eval`. Without it, `Eval` is skipped with a notice.
-- `DATABASE_URL` (secret of the `production` environment) for `Migrate production`: the Supabase pooler URL.
+- `DATABASE_URL` (secret of the `production` environment) for `Migrate production`: the Session pooler URL with the `postgres` login, since migrations change the schema.
 
 GitHub only offers the "Run workflow" button for workflows that are on the default branch (`main`).
 
@@ -240,20 +240,43 @@ GitHub only offers the "Run workflow" button for workflows that are on the defau
 
 The managed database is Supabase Postgres in Mumbai (`ap-south-1`). Connect through the **Session pooler** (`aws-0-ap-south-1.pooler.supabase.com:5432`, user `postgres.<project-ref>`). The direct host `db.<ref>.supabase.co` has only an IPv6 address, so LiveKit Cloud can't reach it. Session mode supports the prepared statements the app uses.
 
-The Supabase Data API is turned off. The app connects only as `postgres`, and the tables have no row-level security, so leave it off.
+The Supabase Data API is turned off. The tables have no row-level security, so leave it off.
 
-Keep the production settings in `.env.supabase` at the repo root: the Supabase URL and the deployed worker's name. It's gitignored by the `.env*` rule, so `.env` can stay pointed at the local database and the local worker. Percent-encode `@ : / ? # %` in the password.
+**Logins.** Each runtime gets only the access it needs (FLU-100). Migration `0007_app_roles` creates two roles without login rights and grants them:
+
+| Role             | Used by                     | Can                                                                                                                                                    |
+| ---------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `postgres`       | Migrations only             | Everything, including schema changes                                                                                                                   |
+| `fluency_app`    | The web app and the scripts | Read and write every table, including tables later migrations add. No schema changes.                                                                  |
+| `fluency_worker` | The voice worker            | Read learners, cards and error patterns; add sessions, turns and pronunciation scores; update voice usage. No deletes, no feedback, no schema changes. |
+
+A table the worker needs later is granted in that table's own migration. `lib/db-roles.db.test.ts` runs the worker's real queries as `fluency_worker`, so a missing grant fails the tests.
+
+To turn the roles into logins on Supabase, run this once in the SQL editor with two new passwords (`openssl rand -hex 24` gives ones that need no URL encoding):
+
+```sql
+ALTER ROLE fluency_app WITH LOGIN PASSWORD '<app password>';
+ALTER ROLE fluency_worker WITH LOGIN PASSWORD '<worker password>';
+```
+
+Through the pooler, a role's user name is `<role>.<project-ref>`, for example `fluency_app.<project-ref>`.
+
+Keep the production settings in `.env.supabase` at the repo root. It's gitignored by the `.env*` rule, so `.env` can stay pointed at the local database and the local worker. Percent-encode `@ : / ? # %` in a password.
 
 ```
-DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+# The app's login. Migrations use MIGRATION_DATABASE_URL instead (drizzle.config.ts).
+DATABASE_URL=postgresql://fluency_app.<project-ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
+MIGRATION_DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-0-ap-south-1.pooler.supabase.com:5432/postgres
 VOICE_AGENT_NAME=fluency-tutor
 ```
+
+**Serverless.** On Vercel, every function instance holds its own connections, and the Session pooler's limit is shared by all of them. There, use the **Transaction pooler** (port `6543`) and set `DATABASE_POOL_MAX=1`. `lib/db.ts` turns prepared statements off on port 6543, because that pooler hands each transaction to whichever server connection is free. The voice worker and your machine stay on the Session pooler.
 
 Variables from `--env-file` win over `.env`, so a command run with `.env.supabase` uses production's database and worker.
 
 **Migrations only add things.** The web app and the voice worker deploy separately, so for a while the old code runs against the new schema. Add tables and nullable or defaulted columns first, and rename or drop in a later release, once no deployed code uses the old shape. Migrate before deploying the code that needs it, with the `Migrate production` workflow (see CI) or from your machine.
 
-To run migrations against Supabase from your machine, pass the URL in through the environment. `drizzle.config.ts` doesn't override a `DATABASE_URL` that is already set.
+To run migrations against Supabase from your machine, pass the URLs in through the environment. `drizzle.config.ts` uses `MIGRATION_DATABASE_URL`, falling back to `DATABASE_URL`, and doesn't override variables that are already set.
 
 ```bash
 node --env-file=.env.supabase -e "require('child_process').execFileSync('pnpm',['db:migrate'],{stdio:'inherit'})"
@@ -274,7 +297,7 @@ lk agent logs        # add --log-type=build for the build logs
 lk agent secrets     # list secret names
 ```
 
-The agent needs four secrets: `DATABASE_URL` (the Supabase pooler URL), `VOICE_AGENT_NAME=fluency-tutor`, `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`. Without `VOICE_AGENT_NAME` the worker exits at start, so set it before deploying a version that reads it. LiveKit Cloud provides the `LIVEKIT_*` variables itself. To change the secrets, write them to a file outside the repo, one `KEY=value` per line. Then apply the file and delete it:
+The agent needs four secrets: `DATABASE_URL` (the Session pooler URL with the `fluency_worker` login), `VOICE_AGENT_NAME=fluency-tutor`, `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`. Without `VOICE_AGENT_NAME` the worker exits at start, so set it before deploying a version that reads it. LiveKit Cloud provides the `LIVEKIT_*` variables itself. To change the secrets, write them to a file outside the repo, one `KEY=value` per line. Then apply the file and delete it:
 
 ```bash
 lk agent update-secrets --secrets-file /path/to/agent-secrets.env   # restarts the agent
