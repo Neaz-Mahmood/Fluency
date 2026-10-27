@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { ReadableStream } from "node:stream/web";
 
 import type { PhraseResult } from "@/lib/pronunciation-score";
+import { TimedAgent, type TurnTimeline } from "./timeline";
 import { pcmDurationMs, SCORING_SAMPLE_RATE, type TurnAudioBuffer } from "./turn-audio";
 
 // Node 26's global WebSocket fails against Azure (1006); make the SDK use its bundled `ws`.
@@ -126,12 +127,16 @@ export async function assessScripted(
 
 // The tutor agent, which also copies the learner's audio for pronunciation scoring. Flux gets the
 // audio exactly as before; the copy is held only in memory until its turn is scored, never stored.
-export class ScoringAgent extends voice.Agent {
+export class ScoringAgent extends TimedAgent {
   // A plain field, not a parameter property: Node's type stripping can't run those.
   private readonly turnAudio: TurnAudioBuffer;
 
-  constructor(options: voice.AgentOptions<unknown>, turnAudio: TurnAudioBuffer) {
-    super(options);
+  constructor(
+    options: voice.AgentOptions<unknown>,
+    timeline: TurnTimeline,
+    turnAudio: TurnAudioBuffer,
+  ) {
+    super(options, timeline);
     this.turnAudio = turnAudio;
   }
 
@@ -142,6 +147,7 @@ export class ScoringAgent extends voice.Agent {
     const stream = audio instanceof ReadableStream ? audio : ReadableStream.from(audio);
     const [forStt, copy] = stream.tee();
     void collectTurnAudio(copy, this.turnAudio);
-    return voice.Agent.default.sttNode(this, forStt, modelSettings);
+    // TimedAgent's sttNode, which also reads Flux's word times for the timeline.
+    return super.sttNode(forStt, modelSettings);
   }
 }

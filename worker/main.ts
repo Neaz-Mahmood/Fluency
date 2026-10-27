@@ -41,6 +41,7 @@ import {
   ScoringAgent,
   type AzureConfig,
 } from "./pronunciation";
+import { formatTimeline, TimedAgent, TurnTimeline } from "./timeline";
 import {
   concatPcm,
   pcmDurationMs,
@@ -106,6 +107,9 @@ export default defineAgent({
     let scoring = Promise.resolve();
     let pendingAudio: Int16Array[] = [];
     let lastEndOfTurnDelay: number | undefined;
+    let lastStoppedSpeakingAt: number | undefined;
+    let lastTranscriptionDelay: number | undefined;
+    const timeline = new TurnTimeline();
 
     // Returns the session the exchange was saved into, or null when saving failed.
     const save = async (exchange: VoiceExchange, userTurnId: string): Promise<string | null> => {
@@ -199,6 +203,8 @@ export default defineAgent({
       // LiveKit puts the end-of-turn delay on the learner's message, the rest on the reply.
       if (item.role === "user") {
         lastEndOfTurnDelay = item.metrics?.endOfTurnDelay;
+        lastStoppedSpeakingAt = item.metrics?.stoppedSpeakingAt;
+        lastTranscriptionDelay = item.metrics?.transcriptionDelay;
         if (turnAudio) {
           // LiveKit gives the speaking times in seconds.
           const { startedSpeakingAt, stoppedSpeakingAt } = item.metrics ?? {};
@@ -214,6 +220,23 @@ export default defineAgent({
         console.log(
           `[voice] endOfTurn ${ms(lastEndOfTurnDelay)}, llmTtft ${ms(llmNodeTtft)}, ttsTtfb ${ms(ttsNodeTtfb)}, e2e ${ms(e2eLatency)}`,
         );
+        const calls = timeline.take();
+        if (
+          lastStoppedSpeakingAt !== undefined &&
+          lastEndOfTurnDelay !== undefined &&
+          e2eLatency !== undefined
+        ) {
+          console.log(
+            formatTimeline({
+              stoppedSpeakingAt: lastStoppedSpeakingAt * 1000,
+              endOfTurnAt: (lastStoppedSpeakingAt + lastEndOfTurnDelay) * 1000,
+              agentSpeakingAt: (lastStoppedSpeakingAt + e2eLatency) * 1000,
+              transcriptionDelayMs:
+                lastTranscriptionDelay === undefined ? undefined : lastTranscriptionDelay * 1000,
+              ...calls,
+            }),
+          );
+        }
       }
 
       const exchange = collector.add({
@@ -246,8 +269,8 @@ export default defineAgent({
 
     await session.start({
       agent: turnAudio
-        ? new ScoringAgent({ instructions: context.instructions, chatCtx }, turnAudio)
-        : new voice.Agent({ instructions: context.instructions, chatCtx }),
+        ? new ScoringAgent({ instructions: context.instructions, chatCtx }, timeline, turnAudio)
+        : new TimedAgent({ instructions: context.instructions, chatCtx }, timeline),
       room: ctx.room,
       // Turns off LiveKit's default recording: it writes session audio to disk and uploads audio,
       // transcript and traces to LiveKit Cloud. Fluency stores no raw audio (doc/voice-path.md).

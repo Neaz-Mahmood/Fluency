@@ -183,3 +183,57 @@ export function createLatencyTracker(): LatencyTracker {
     },
   };
 }
+
+// Receive-side WebRTC numbers for the agent's audio, logged with each timed reply (FLU-72) to
+// show how much of the browser's latency is network and buffering rather than the worker.
+export type AudioStatsSample = {
+  // Cumulative, from the inbound-rtp stats: seconds of buffering summed over emitted samples.
+  jitterBufferDelay: number;
+  jitterBufferEmittedCount: number;
+  // From the selected candidate pair, in seconds.
+  roundTripTime: number | null;
+};
+
+// Reads an RTCStatsReport's values (passed as an iterable so tests can use plain objects).
+export function readAudioStats(stats: Iterable<Record<string, unknown>>): AudioStatsSample | null {
+  let inbound: Record<string, unknown> | null = null;
+  let roundTripTime: number | null = null;
+  for (const stat of stats) {
+    if (stat.type === "inbound-rtp" && stat.kind === "audio") inbound = stat;
+    if (
+      stat.type === "candidate-pair" &&
+      stat.state === "succeeded" &&
+      stat.nominated === true &&
+      typeof stat.currentRoundTripTime === "number"
+    ) {
+      roundTripTime = stat.currentRoundTripTime;
+    }
+  }
+  if (
+    !inbound ||
+    typeof inbound.jitterBufferDelay !== "number" ||
+    typeof inbound.jitterBufferEmittedCount !== "number"
+  ) {
+    return null;
+  }
+  return {
+    jitterBufferDelay: inbound.jitterBufferDelay,
+    jitterBufferEmittedCount: inbound.jitterBufferEmittedCount,
+    roundTripTime,
+  };
+}
+
+// "[voice] network: rtt 84 ms, jitter buffer 61 ms, edge India South". The jitter buffer is the
+// average over the samples played since the previous line, or since the start without one.
+export function audioStatsLine(
+  previous: AudioStatsSample | null,
+  current: AudioStatsSample,
+  edge: string | undefined,
+): string {
+  const delay = current.jitterBufferDelay - (previous?.jitterBufferDelay ?? 0);
+  const count = current.jitterBufferEmittedCount - (previous?.jitterBufferEmittedCount ?? 0);
+  const buffer = count > 0 ? `${Math.round((delay / count) * 1000)} ms` : "n/a";
+  const rtt =
+    current.roundTripTime === null ? "n/a" : `${Math.round(current.roundTripTime * 1000)} ms`;
+  return `[voice] network: rtt ${rtt}, jitter buffer ${buffer}, edge ${edge || "unknown"}`;
+}

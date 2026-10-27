@@ -102,6 +102,59 @@ A hidden or throttled browser tab (tick gap > 100 ms) or an audio onset with a n
 
 Running `pnpm voice:latency [--since YYYY-MM-DD] [--learner <uuid>]` reports p50 and p90 against the exit gate (p50 < 750 ms, p90 < 950 ms). At least 20 turns are required before issuing a pass/fail verdict.
 
+#### The bench and the per-turn timeline (FLU-72)
+
+`pnpm voice:bench [--url http://localhost:3000] [--learners 1-5] [--wav <file>]` reproduces the measurement. It needs Chrome and a WAV of learner turns. The default `out/flu63/fake-mic.wav` (9 turns, 172 s) is local only, since `out/` is gitignored.
+
+For each learner, headless Chrome plays the WAV as the microphone in a café live voice session, and the browser saves its numbers as usual. The script then prints the gate report for that run, plus the browser's network round trip and jitter buffer. The learners have `user_id` `voice-bench-1` to `voice-bench-5`, and today's voice usage is cleared for those learners only, so runs aren't refused by the quota.
+
+The app at `--url`, the script and the worker must all use the same database, because the browser's numbers are saved on the worker's turns. Against the deployed worker:
+
+```bash
+node --env-file=.env.supabase -e "require('child_process').spawnSync('pnpm',['dev','--port','3100'],{stdio:'inherit'})"   # terminal 1
+node --env-file=.env.supabase -e "require('child_process').spawnSync('pnpm',['voice:bench','--url','http://localhost:3100'],{stdio:'inherit'})"   # terminal 2
+lk agent logs | grep "timeline:"   # the worker's side
+```
+
+Each run uses real LiveKit Inference minutes: about 3 minutes per learner. The Build plan includes about 50 minutes a month.
+
+Both sides log one line per reply. The browser line is `[voice] speech end → first audio: N ms (speech end at <epoch ms>, audible at <epoch ms>)`, followed by `[voice] network: rtt …, jitter buffer …, edge …` from the agent track's WebRTC stats (`readAudioStats` and `audioStatsLine` in `lib/live-voice.ts`). The worker logs, in milliseconds after LiveKit's `stoppedSpeakingAt`:
+
+```
+[voice] timeline: last word -22, eot +383, transcript delay 119 | llm +92 (preemptive, lead 291) first token +989 | tts +990 first text +1006 first audio +1330 audible +1410 | speaking +1331 | llm calls 1, tts calls 1 | t0 <epoch ms>
+```
+
+- **`TimedAgent`** (`worker/timeline.ts`) times every LLM and TTS node call. It also reads the end of the last word from Flux's word timings.
+- **The reply's call** is the last one started before the agent spoke. It's `preemptive` when it started before the end of turn.
+- **`audible`** is the first frame above the browser's -50 dBFS threshold (`AGENT_AUDIO_DBFS`).
+- **`t0`** lines up with the browser's wall-clock times. This Mac's clock was within about 15 ms of NTP.
+
+**Where the time goes (2026-10-27).** These are 54 turns over four runs against the deployed worker, from Dhaka. The worker stages are on the worker's clock:
+
+| Stage (ms after the learner stopped speaking)                 | p50 | p90  |
+| ------------------------------------------------------------- | --- | ---- |
+| End of turn committed                                         | 384 | 1076 |
+| Model call start → first token (Gemma 4 31B)                  | 376 | 907  |
+| Waiting for the first token after end of turn                 | 338 | 684  |
+| Voice: first text → first audio frame (Cartesia)              | 180 | 337  |
+| Leading silence: first frame → first audible frame (27 turns) | 80  | 150  |
+| **Worker total: first audio frame**                           | 996 | 1731 |
+
+- **Preemptive generation is used on 36 of 54 turns.** The draft starts only about 250–400 ms before the end of turn, while the model's first token takes 376 ms at p50. So the reply still waits for the model on most turns. On the other 18 turns, Flux's early end-of-turn signal never came, and the call started at the end of turn (about +300 ms).
+- **The end-of-turn tail is Flux finalizing late.** On 5 of 27 turns, the final transcript arrived 0.9–1.0 s after the speech ended, and the end of turn waited for it.
+- **`preemptiveTts` is off,** so TTS starts only when the turn is committed. That cost 250–330 ms on the turns where the first token was ready before the end of turn.
+
+The run with wall-clock times (9 turns) splits the browser number into three legs. The clock offset of about ±15 ms moves time between the uplink and the downlink, but not the total.
+
+| Leg                                                  | p50    | Range    |
+| ---------------------------------------------------- | ------ | -------- |
+| Uplink: browser speech end → last word at the worker | 197 ms | 115–206  |
+| Worker: last word → first audible frame out          | 962 ms | 666–1835 |
+| Downlink: audible frame out → audible in the browser | 477 ms | 209–716  |
+| **Sum (browser measured p50 1641 ms)**               | 1636   |          |
+
+The downlink is the surprise. The network round trip is 60–100 ms and the jitter buffer averages 75–120 ms, which explains only about 160 ms. The other ~300 ms, which varies from turn to turn, comes after the worker hands its audio to LiveKit. The 200 ms output queue in `room_io` and the receive-side buffering after the agent's silence between replies are the first suspects (FLU-74). Flux's last word lands within ±90 ms of LiveKit's `stoppedSpeakingAt` on 8 of 9 turns, so the worker's start point is accurate.
+
 ### Pronunciation
 
 Each learner turn gets a scripted Azure pronunciation assessment, with its Flux transcript as the reference text, after the exchange is saved (doc/voice-path.md, Decision 4).

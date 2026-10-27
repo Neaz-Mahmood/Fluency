@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  audioStatsLine,
   createLatencyTracker,
   liveEndMessage,
   liveStatus,
+  readAudioStats,
   remainingFromAttributes,
   REMAINING_SECONDS_ATTRIBUTE,
   rmsDbfs,
@@ -320,5 +322,57 @@ describe("createLatencyTracker", () => {
     tracker.agentState("thinking");
     for (let t = 3200; t < 3700; t += 10) tracker.tick(t, -60, -60);
     expect(tracker.tick(3700, -60, -40)).toBe(700);
+  });
+});
+
+describe("readAudioStats", () => {
+  it("reads the audio jitter buffer and the selected pair's round trip", () => {
+    expect(
+      readAudioStats([
+        { type: "inbound-rtp", kind: "video", jitterBufferDelay: 9, jitterBufferEmittedCount: 9 },
+        {
+          type: "inbound-rtp",
+          kind: "audio",
+          jitterBufferDelay: 4800,
+          jitterBufferEmittedCount: 96_000,
+        },
+        { type: "candidate-pair", state: "failed", nominated: true, currentRoundTripTime: 1 },
+        {
+          type: "candidate-pair",
+          state: "succeeded",
+          nominated: true,
+          currentRoundTripTime: 0.084,
+        },
+      ]),
+    ).toEqual({ jitterBufferDelay: 4800, jitterBufferEmittedCount: 96_000, roundTripTime: 0.084 });
+  });
+
+  it("returns null without audio inbound stats", () => {
+    expect(readAudioStats([{ type: "candidate-pair", state: "succeeded" }])).toBeNull();
+  });
+});
+
+describe("audioStatsLine", () => {
+  const first = { jitterBufferDelay: 4800, jitterBufferEmittedCount: 96_000, roundTripTime: 0.084 };
+
+  it("averages the jitter buffer from the start without a previous sample", () => {
+    expect(audioStatsLine(null, first, "India South")).toBe(
+      "[voice] network: rtt 84 ms, jitter buffer 50 ms, edge India South",
+    );
+  });
+
+  it("averages only the samples since the previous line", () => {
+    const next = {
+      jitterBufferDelay: 7200,
+      jitterBufferEmittedCount: 144_000,
+      roundTripTime: null,
+    };
+    expect(audioStatsLine(first, next, undefined)).toBe(
+      "[voice] network: rtt n/a, jitter buffer 50 ms, edge unknown",
+    );
+  });
+
+  it("shows n/a when nothing played since the previous line", () => {
+    expect(audioStatsLine(first, first, "India South")).toContain("jitter buffer n/a");
   });
 });

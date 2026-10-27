@@ -6,17 +6,20 @@ import type { Turn } from "@/hooks/useConversation";
 import { recordLiveVoiceLatency } from "@/app/practice/actions";
 import {
   AGENT_STATE_ATTRIBUTE,
+  audioStatsLine,
   createLatencyTracker,
   END_REASON_ATTRIBUTE,
   LATENCY_TICK_MS,
   liveEndMessage,
   liveStatus,
+  readAudioStats,
   remainingFromAttributes,
   REPLY_TURN_ID_ATTRIBUTE,
   rmsDbfs,
   sessionIdFromAttributes,
   TRANSCRIPTION_TOPIC,
   transcriptUpdate,
+  type AudioStatsSample,
   type LatencyTracker,
   type LiveVoiceStatus,
 } from "@/lib/live-voice";
@@ -64,6 +67,8 @@ export function useLiveVoice(options: {
   const latencyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const trackerRef = useRef<LatencyTracker | null>(null);
   const pendingLatencyRef = useRef<number | null>(null);
+  const agentTrackRef = useRef<import("livekit-client").RemoteTrack | null>(null);
+  const lastStatsRef = useRef<AudioStatsSample | null>(null);
 
   useEffect(() => {
     onTurnRef.current = options.onTurn;
@@ -86,6 +91,8 @@ export function useLiveVoice(options: {
     agentAnalyserRef.current = null;
     trackerRef.current = null;
     pendingLatencyRef.current = null;
+    agentTrackRef.current = null;
+    lastStatsRef.current = null;
     const ctx = audioContextRef.current;
     audioContextRef.current = null;
     if (ctx) {
@@ -103,6 +110,15 @@ export function useLiveVoice(options: {
     const source = ctx.createMediaStreamSource(new MediaStream([track]));
     source.connect(analyser);
     return analyser;
+  }
+
+  // Logs the network and buffering behind a timed reply (FLU-72), next to its latency line.
+  async function logNetworkStats(room: import("livekit-client").Room) {
+    const report = await agentTrackRef.current?.getRTCStatsReport().catch(() => undefined);
+    const sample = report ? readAudioStats(report.values()) : null;
+    if (!sample) return;
+    console.info(audioStatsLine(lastStatsRef.current, sample, room.serverInfo?.region));
+    lastStatsRef.current = sample;
   }
 
   // Safe to call twice. Resolves once the room has disconnected.
@@ -311,6 +327,7 @@ export function useLiveVoice(options: {
         attachedElementsRef.current.add(element);
         document.body.appendChild(element);
         agentAnalyserRef.current = analyse(track.mediaStreamTrack);
+        agentTrackRef.current = track;
       }
     });
 
@@ -382,11 +399,17 @@ export function useLiveVoice(options: {
         agentAnalyserRef.current.getFloatTimeDomainData(agentBuffer);
         agentDbfs = rmsDbfs(agentBuffer);
       }
-      const ms = trackerRef.current?.tick(performance.now(), micDbfs, agentDbfs);
+      const now = performance.now();
+      const ms = trackerRef.current?.tick(now, micDbfs, agentDbfs);
       // Once an end reason is set, the next audio is the quota goodbye, not a reply.
       if (typeof ms === "number" && endReasonRef.current === null) {
         pendingLatencyRef.current = ms;
-        console.info(`[voice] speech end → first audio: ${ms} ms`);
+        // Wall-clock times, to line up with the worker's timeline (FLU-72).
+        const audibleAt = Math.round(performance.timeOrigin + now);
+        console.info(
+          `[voice] speech end → first audio: ${ms} ms (speech end at ${audibleAt - ms}, audible at ${audibleAt})`,
+        );
+        void logNetworkStats(room);
       }
     }, LATENCY_TICK_MS);
 
