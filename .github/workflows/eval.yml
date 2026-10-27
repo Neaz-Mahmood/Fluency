@@ -1,0 +1,54 @@
+# The over-correction gate (`pnpm eval`) on the real feedback model (FLU-101). Each run costs
+# money, so it runs only when the corrector, its model or its golden set changes, or by hand.
+# It needs the repository secret OPENCODE_API_KEY; without it the run is skipped with a notice.
+name: Eval
+
+on:
+  push:
+    paths:
+      - lib/feedback.ts
+      - lib/anthropic.ts
+      - scripts/eval/**
+  workflow_dispatch:
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    outputs:
+      present: ${{ steps.check.outputs.present }}
+    steps:
+      - id: check
+        env:
+          KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::OPENCODE_API_KEY isn't set as a repository secret, so the eval was skipped."
+          fi
+
+  eval:
+    needs: key
+    if: needs.key.outputs.present == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Exits 1 at 5% over-correction or more, or a rise over scripts/eval/baseline.json.
+      - run: pnpm eval
+        env:
+          AI_PROVIDER: opencode
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}

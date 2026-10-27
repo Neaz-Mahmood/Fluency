@@ -217,6 +217,23 @@ The local worker and the app both use `VOICE_AGENT_NAME` from `.env` (`fluency-t
 - `pnpm eval`: scores the corrector against `scripts/eval/golden/bn-en.json` ([doc/evaluation.md](doc/evaluation.md))
 - `pnpm lint` and `pnpm format`
 
+### CI
+
+GitHub Actions runs three workflows from `.github/workflows/`:
+
+| Workflow             | Runs                                                                                    | Does                                                                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CI`                 | Every push                                                                              | `tsc --noEmit`, `pnpm lint`, `pnpm test`, `pnpm test:db` against a Postgres 18 service, and `pnpm build`. It needs no secrets and no `.env`. |
+| `Eval`               | Pushes that change `lib/feedback.ts`, `lib/anthropic.ts` or `scripts/eval/`, or by hand | `pnpm eval` on the real feedback model. It fails on over-correction of 5% or more, or a rise over the baseline. Each run costs money.        |
+| `Migrate production` | By hand only                                                                            | `pnpm db:migrate` against production.                                                                                                        |
+
+Secrets, set in the repository's Settings → Secrets and variables → Actions:
+
+- `OPENCODE_API_KEY` (repository secret) for `Eval`. Without it, `Eval` is skipped with a notice.
+- `DATABASE_URL` (secret of the `production` environment) for `Migrate production`: the Supabase pooler URL.
+
+GitHub only offers the "Run workflow" button for workflows that are on the default branch (`main`).
+
 ## Deployment
 
 ### Database: Supabase
@@ -234,7 +251,9 @@ VOICE_AGENT_NAME=fluency-tutor
 
 Variables from `--env-file` win over `.env`, so a command run with `.env.supabase` uses production's database and worker.
 
-To run migrations against Supabase, pass the URL in through the environment. `drizzle.config.ts` doesn't override a `DATABASE_URL` that is already set.
+**Migrations only add things.** The web app and the voice worker deploy separately, so for a while the old code runs against the new schema. Add tables and nullable or defaulted columns first, and rename or drop in a later release, once no deployed code uses the old shape. Migrate before deploying the code that needs it, with the `Migrate production` workflow (see CI) or from your machine.
+
+To run migrations against Supabase from your machine, pass the URL in through the environment. `drizzle.config.ts` doesn't override a `DATABASE_URL` that is already set.
 
 ```bash
 node --env-file=.env.supabase -e "require('child_process').execFileSync('pnpm',['db:migrate'],{stdio:'inherit'})"

@@ -60,7 +60,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
 11. ~~**Placement's token limit is tight.** `finishPlacement` gives the feedback model `maxTokens: 200`, and Opus 5.5's thinking counts toward it, so the levels can be cut off.~~ Fixed: raised `maxTokens` to 1,000 for the feedback model (FLU-38).
 12. **A closed tab builds neither a summary nor feedback.** Only "Finish and get feedback" and "Switch scenario" end a session and trigger the learner summary and feedback job.
-13. **The eval runs only locally.** There is no CI yet, so "CI fails the build if over-correction rises" isn't wired; `pnpm eval` already exits 1 on failure.
+13. ~~**The eval runs only locally.**~~ Fixed (FLU-101): GitHub Actions runs the checks, tests and build on every push, and `pnpm eval` when the corrector or its golden set changes. The eval needs the `OPENCODE_API_KEY` repository secret.
 
 ### Latency baseline
 
@@ -146,7 +146,7 @@ Done when: a new learner completes placement, finishes one session, and their ne
 
 - [x] Over-correction on error-free golden sentences below 5%: 0/100 (0.0%) on 200 bn → en sentences (pending native review of the golden set).
 - [x] Edit F0.5 recorded as a baseline: 0.953 in `scripts/eval/baseline.json`, on normalized span match, not ERRANT.
-- [ ] CI fails the build if over-correction goes up: not wired, since there is no CI yet. `pnpm eval` exits 1 at ≥5% or a rise of more than one sentence over the baseline.
+- [x] CI fails the build if over-correction goes up: the `Eval` workflow (FLU-101) runs `pnpm eval` when `lib/feedback.ts`, `lib/anthropic.ts` or `scripts/eval/` change, and fails at ≥5% or a rise of more than one sentence over the baseline. It needs the `OPENCODE_API_KEY` repository secret.
 
 ## After Phase 3
 

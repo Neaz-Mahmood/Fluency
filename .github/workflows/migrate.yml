@@ -1,0 +1,32 @@
+# Applies the drizzle/ migrations to the production database (FLU-101). Run it by hand from the
+# Actions tab before deploying code that needs them. Migrations only add things (README,
+# Deployment), so the deployed app and worker keep working on the new schema until they're updated.
+name: Migrate production
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Holds the DATABASE_URL secret. Required reviewers can be added in Settings → Environments.
+    environment: production
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
