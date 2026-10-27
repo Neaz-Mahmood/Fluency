@@ -21,6 +21,7 @@ export async function markFeedbackPending(
       sessionId: options.sessionId,
       learnerId: options.learnerId,
       status: "pending",
+      attempts: 1,
     })
     .onConflictDoNothing();
 }

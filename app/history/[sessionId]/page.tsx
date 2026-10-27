@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { Suspense } from "react";
 
 import { formatSessionDate, formatSessionTitle } from "@/app/history/format";
@@ -15,6 +16,7 @@ import { getMessages } from "@/lib/messages";
 import { summarizeSessionPronunciation } from "@/lib/pronunciation-recap";
 import { loadSessionScores } from "@/lib/pronunciation-store";
 import { findSession, loadTurns } from "@/lib/sessions";
+import { sweep } from "@/lib/sweep";
 
 export const metadata: Metadata = {
   title: "Conversation",
@@ -51,6 +53,10 @@ async function HistoryDetail({ params }: { params: Params }) {
     session.mode !== "placement"
       ? await getFeedback(getDb(), { learnerId: learner.learnerId, sessionId })
       : null;
+  if (feedback?.status === "pending" || feedback?.pronunciationStatus === "pending") {
+    const learnerId = learner.learnerId;
+    after(() => sweep({ learnerId, limit: 5 }));
+  }
   const pronunciation =
     feedback?.pronunciationStatus === "done"
       ? summarizeSessionPronunciation(

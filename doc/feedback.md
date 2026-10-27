@@ -24,7 +24,12 @@ app/history/[sessionId]/page.tsx  # Route hosting the transcript and recap
 
 ## How it works
 
-- **Session end and triggering**: "Finish and get feedback" ends the session and marks `session_feedback` pending. In `after()`, the summary and the feedback job run in parallel.
+- **Session end and triggering**: "Finish and get feedback" ends the session and marks `session_feedback` pending (attempt 1). In `after()`, the summary and the feedback job run in parallel (`finishConversation` and `runConversationJobs` in `lib/session-end.ts`).
+- **Retries and abandoned sessions (FLU-99)**: `lib/sweep.ts` treats `session_feedback` as the job record.
+  - A job still pending 5 minutes after it was last touched is claimed (`FOR UPDATE SKIP LOCKED`, and the claim refreshes `updated_at`, so it isn't claimed again for 5 minutes) and run again. After 3 attempts it's marked failed.
+  - A conversation with no turn for 30 minutes, such as a closed tab, is ended and gets its summary, feedback and pronunciation jobs.
+  - A learner's own sweep runs in `after()` when they open Practice (except the conversation being resumed) or History, and on a recap that's still pending. `/api/cron/sweep` sweeps every learner; it needs `CRON_SECRET`, and `vercel.json` schedules it daily, the most Vercel's free plan allows.
+  - The recap stops refreshing after 2 minutes, so a retried recap shows on the next visit.
 - **Precision-first prompt**: The prompt is precision-first: the few-shot example is 3/5 error-free and it never asks for a number of errors. Partner lines are context only. Voice lines get no spelling fixes.
 - **Parser validation**: The parser drops edits whose `original` isn't in the line.
 - **Explanation language**: Explanations are in Bangla for `bn-BD` learners at A1, A2 or no level, and in English otherwise.
@@ -43,5 +48,5 @@ app/history/[sessionId]/page.tsx  # Route hosting the transcript and recap
 
 ## Notes
 
-- Only "Finish and get feedback" and "Switch scenario" end a session. A closed tab leaves it open with no feedback.
+- "Finish and get feedback" and "Switch scenario" end a session at once. A closed tab's session is ended by the sweeper after 30 minutes idle.
 - Placement sessions get no recap.

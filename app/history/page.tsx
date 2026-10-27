@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { unstable_rethrow } from "next/navigation";
+import { after } from "next/server";
 import { Suspense } from "react";
 
 import { formatSessionDate, formatSessionTitle } from "@/app/history/format";
 import { getDb } from "@/lib/db";
 import { getLearner } from "@/lib/learner";
 import { listSessions } from "@/lib/sessions";
+import { sweep } from "@/lib/sweep";
 
 export const metadata: Metadata = {
   title: "History",
@@ -25,7 +27,9 @@ async function HistoryList() {
   let sessions;
   try {
     const learner = await getLearner();
-    sessions = await listSessions(getDb(), learner.learnerId);
+    const learnerId = learner.learnerId;
+    after(() => sweep({ learnerId, limit: 5 }));
+    sessions = await listSessions(getDb(), learnerId);
   } catch (error) {
     unstable_rethrow(error);
     console.error("Could not load session history.", error);

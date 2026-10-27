@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect, unstable_rethrow } from "next/navigation";
+import { after } from "next/server";
 import { Suspense } from "react";
 
 import { Conversation } from "@/components/Conversation";
@@ -11,6 +12,7 @@ import { isUuid } from "@/lib/learner-id";
 import { getMessages } from "@/lib/messages";
 import { isScenarioId } from "@/lib/scenarios";
 import { findOpenSession, loadTurns } from "@/lib/sessions";
+import { sweep } from "@/lib/sweep";
 import { liveVoiceConfig } from "@/lib/voice-token";
 
 export const metadata: Metadata = {
@@ -40,6 +42,12 @@ async function PracticeConversation({ searchParams }: { searchParams: SearchPara
 
   if (learner && learner.nativeLanguage === null) {
     redirect("/onboarding");
+  }
+
+  if (learner) {
+    const learnerId = learner.learnerId;
+    const exceptSessionId = isUuid(session) ? session : undefined;
+    after(() => sweep({ learnerId, exceptSessionId, limit: 5 }));
   }
 
   const saved = learner ? await loadSavedConversation(learner, session) : null;

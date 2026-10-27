@@ -265,6 +265,9 @@ export const sessionFeedback = pgTable("session_feedback", {
   // Live voice sessions only (FLU-65). Null when the session had no spoken turns or none was scored.
   pronunciationStatus: feedbackStatus("pronunciation_status"),
   pronunciationTips: jsonb("pronunciation_tips").$type<PronunciationTip[]>().notNull().default([]),
+  // Runs started for this session's jobs: the first one when the session ends, then the sweeper's
+  // retries (lib/sweep.ts, FLU-99).
+  attempts: integer("attempts").notNull().default(0),
   ...timestamps,
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

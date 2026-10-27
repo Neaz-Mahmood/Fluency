@@ -59,7 +59,7 @@ A snapshot of the app's health, the gaps between the current code and the roadma
 9. ~~**`components/Conversation.tsx` is 448 lines** and has raw hex colors instead of the design tokens in `DESIGN.md`.~~ Fixed: state machine moved to `hooks/useConversation.ts` and hex colors replaced with design tokens (FLU-26).
 10. **Web Speech recognition only works fully in Chrome.** Phase 4 replaces it. Until then, the typed fallback covers other browsers.
 11. ~~**Placement's token limit is tight.** `finishPlacement` gives the feedback model `maxTokens: 200`, and Opus 5.5's thinking counts toward it, so the levels can be cut off.~~ Fixed: raised `maxTokens` to 1,000 for the feedback model (FLU-38).
-12. **A closed tab builds neither a summary nor feedback.** Only "Finish and get feedback" and "Switch scenario" end a session and trigger the learner summary and feedback job.
+12. ~~**A closed tab builds neither a summary nor feedback.**~~ Fixed (FLU-99): the sweeper ends a conversation idle for 30 minutes and runs its jobs, and retries jobs left pending.
 13. ~~**The eval runs only locally.**~~ Fixed (FLU-101): GitHub Actions runs the checks, tests and build on every push, and `pnpm eval` when the corrector or its golden set changes. The eval needs the `OPENCODE_API_KEY` repository secret.
 
 ### Latency baseline
