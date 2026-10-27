@@ -122,6 +122,7 @@ Fluency becomes something you can open every day, from any device.
 
 - Role-play state machine with goals (`criteria_met_count` / `criteria_total_count`), built on top of `lib/scenarios.ts`.
 - Progress view: CEFR level over time and resolved error streaks.
+- Level re-estimation: placement sets a provisional level once, so every 5 finished sessions the feedback model re-estimates speaking and writing from those sessions, at most one step at a time, and keeps a level history. Without it, the level over time is a flat line.
 
 ### Login (last, about week 12)
 
@@ -133,8 +134,10 @@ Built after everything else works, so the rest of the system is tested first.
 - **One account per email.** If someone signs up with a password and later uses Google with the same verified email, link both to the same account rather than creating a second one.
 - **Link anonymous history.** On first sign-up from a browser that already has a `learner_id`, set `user_id` on that learner so testers keep their sessions and flashcards. On sign-in from a new browser, switch to the account's learner.
 - **Protect routes.** `proxy.ts` redirects signed-out users away from `/practice` and data routes, and returns 401 from `/api/chat`. Each route still checks on the server that the data belongs to the signed-in learner. `proxy.ts` alone isn't authorization.
-- **Swap the helper.** `lib/learner.ts` reads the session instead of the anonymous cookie. Remove the `ACCESS_CODE` gate.
-- **Move the voice quota to the account,** so clearing cookies no longer resets it.
+- **Swap the helper.** `lib/learner.ts` reads the session instead of the anonymous cookie.
+- **Sign-up is limited to an allowlist of tester emails** until the free and paid tiers exist, for password and Google sign-up alike. Text chat has no quota, so open sign-up would let anyone spend the model budget. This replaces the `ACCESS_CODE` gate, which was never built.
+- **Move the voice quota to the account,** so clearing cookies no longer resets it. One live voice session at a time per account.
+- **Deploy the web app** on Vercel, with functions in Mumbai next to the database and the voice worker.
 - **"Delete my data" becomes "Delete account"**: it removes the user, the learner and all of their data.
 
 ### Learning and AI
@@ -175,8 +178,10 @@ These are choices the plan doesn't make. Each one needs an owner before the phas
 | --- | --- | --- |
 | Free-tier size. The research says both "three 5-minute sessions" (15 min) and "5 minutes/day". | 5 minutes/day, as three short sessions of 4 turns | Phase 4 |
 | Postgres host and database library (ORM or migration tool) | Decided: Postgres + Drizzle. Managed host is Supabase in Mumbai (ap-south-1), reached through the Session pooler (FLU-67, 2026-10-27) | Phase 2, week 1 |
-| Auth library (must support email/password, Google and the chosen database) | Chosen when Phase 5 login starts | Phase 5, week 12 |
-| Transactional email service (verification and password reset) | Chosen with the auth library | Phase 5, week 12 |
+| Auth library (must support email/password, Google and the chosen database) | Decided 2026-10-27: Better Auth, with its tables in our Postgres through the Drizzle adapter | Phase 5, week 12 |
+| Transactional email service (verification and password reset) | Decided 2026-10-27: Resend, sending from a verified domain | Phase 5, week 12 |
+| Web app host | Decided 2026-10-27: Vercel, functions in Mumbai (`bom1`) | Phase 5, week 12 |
+| Who can sign up while testing | Decided 2026-10-27: an allowlist of tester emails | Phase 5, week 12 |
 | Voice path | Decided 2026-10-26 ([voice-path.md](./voice-path.md)): LiveKit Agents worker on LiveKit Cloud, Deepgram Flux and Gemma 4 31B through LiveKit Inference | Phase 4, week 7 |
 | Text-to-speech vendor | Decided 2026-10-26 ([voice-path.md](./voice-path.md)): Cartesia Sonic-3 through LiveKit Inference, because it can speak the Bangla help | Phase 4, week 7 |
 
