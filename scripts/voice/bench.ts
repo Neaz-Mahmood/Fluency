@@ -23,6 +23,45 @@ const TAIL_SECONDS = 15;
 // LiveKit Cloud's Build plan allows 5 concurrent sessions; runs are sequential anyway.
 const MAX_LEARNERS = 5;
 
+// Runs in the page before the app (FLU-74). It polls the receiving peer connection's audio stats
+// every 10 ms and logs, in wall-clock ms, when the agent's decoded audio level rises after a
+// silence. With the worker's timeline and the browser's "audible at" time, that splits the
+// downlink into transport (worker → decoded) and the Web Audio path to the latency analyser.
+export const LEVEL_PROBE = `(() => {
+  const pcs = [];
+  const Native = window.RTCPeerConnection;
+  window.RTCPeerConnection = function (...args) {
+    const pc = new Native(...args);
+    pcs.push(pc);
+    return pc;
+  };
+  window.RTCPeerConnection.prototype = Native.prototype;
+  // audioLevel is linear (1 = full scale); 0.01 is -40 dBov. A reply starts when it rises above
+  // that after at least 200 ms below.
+  const LEVEL = 0.01, QUIET_MS = 200;
+  let quietSince = null, busy = false;
+  setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      for (const pc of pcs) {
+        if (pc.connectionState === "closed") continue;
+        for (const s of (await pc.getStats()).values()) {
+          if (s.type !== "inbound-rtp" || s.kind !== "audio") continue;
+          const now = Date.now();
+          if ((s.audioLevel ?? 0) < LEVEL) quietSince ??= now;
+          else if (quietSince !== null) {
+            if (now - quietSince >= QUIET_MS) console.info("[voice] bench: agent level at " + now);
+            quietSince = null;
+          }
+        }
+      }
+    } finally {
+      busy = false;
+    }
+  }, 10);
+})();`;
+
 export type BenchArgs = { url: string; learners: number; wav: string };
 
 export function parseBenchArgs(argv: string[]): BenchArgs | { error: string } {
@@ -114,6 +153,7 @@ async function runSession(
   });
   try {
     const context = await browser.newContext({ permissions: ["microphone"] });
+    await context.addInitScript(LEVEL_PROBE);
     await context.addCookies([{ name: LEARNER_COOKIE, value: learnerId, url: args.url }]);
     const page = await context.newPage();
     page.on("console", (message) => {

@@ -153,7 +153,7 @@ The run with wall-clock times (9 turns) splits the browser number into three leg
 | Downlink: audible frame out → audible in the browser | 477 ms | 209–716  |
 | **Sum (browser measured p50 1641 ms)**               | 1636   |          |
 
-The downlink is the surprise. The network round trip is 60–100 ms and the jitter buffer averages 75–120 ms, which explains only about 160 ms. The other ~300 ms, which varies from turn to turn, comes after the worker hands its audio to LiveKit. The 200 ms output queue in `room_io` and the receive-side buffering after the agent's silence between replies are the first suspects (FLU-74). Flux's last word lands within ±90 ms of LiveKit's `stoppedSpeakingAt` on 8 of 9 turns, so the worker's start point is accurate except on turns with a mid-sentence pause.
+The downlink looked like a surprise, but FLU-74 explained most of it. The worker's `audible` mark is when Cartesia _produced_ the first audible frame, not when it played. The leading silence before that frame (80–150 ms) still had to play out, so the 477 ms included it. FLU-73 trims that silence, and FLU-74 measured the downlink from the moment the worker hands the audio to LiveKit; see below. Flux's last word lands within ±90 ms of LiveKit's `stoppedSpeakingAt` on 8 of 9 turns, so the worker's start point is accurate except on turns with a mid-sentence pause.
 
 **After FLU-73 (2026-10-27, 9 turns):** browser p50 1540 ms, p90 2690 ms. Leading silence went from 80 ms to about 0, and on turns with an early draft the audio was ready at the end of turn. Nine turns are too few to compare p50s with confidence. Lowering `eager_eot_threshold` to 0.4 didn't move drafts earlier (still about 280 ms before the end of turn), so it stays at 0.5.
 
@@ -161,9 +161,24 @@ The downlink is the surprise. The network round trip is 60–100 ms and the jitt
 
 - the uplink, about 200 ms;
 - Flux's end of turn, about 380 ms on a normal turn;
-- the downlink, about 480 ms.
+- the downlink, about 250–300 ms (FLU-74).
 
-Even with the model and TTS fully hidden by preemptive generation, that's about 1060 ms. Cutting the downlink's unexplained ~300 ms (FLU-74) would still leave about 760 ms. So the 750 ms p50 gate can't be met by tuning this pipeline from Dhaka. What remains is a product decision: a realistic gate, or the speech-to-speech fallback from `doc/voice-path.md`.
+Even with the model and TTS fully hidden by preemptive generation, that's about 800 ms, and in practice the model and TTS are rarely fully hidden. So the 750 ms p50 gate can't be met by tuning this pipeline from Dhaka.
+
+**The browser leg (FLU-74, 2026-10-27).** The bench adds `LEVEL_PROBE` to the page: it polls the agent track's inbound-rtp `audioLevel` every 10 ms and logs when the decoded audio rises after a silence (`[voice] bench: agent level at <epoch ms>`). The downlink then splits into two parts, over 9 turns:
+
+- **Worker hands audio to LiveKit → decoded in the browser:** p50 291 ms (191–419). That's about 30 ms of one-way network (RTT 60–70 ms), a 75–120 ms jitter buffer, and the SFU, Opus framing and decoding.
+- **Decoded → the latency analyser hears it:** the analyser lags the decoded level by 10–100 ms. That's the Web Audio path (`MediaStreamAudioSourceNode` and the analyser), which the learner's `<audio>` element doesn't go through. So the browser number may overstate what's heard by up to that much. It's left as is: the gate is defined on this measurement.
+- **Worker → audible end to end:** p50 248 ms (146–418).
+
+Ruled out:
+
+- **DTX on Katie's track** (LiveKit's default): publishing with `dtx: false` kept silent frames flowing between replies. The downlink didn't improve (p50 301 ms) and the jitter buffer grew (122 ms vs 74), so DTX stays on.
+- **The 200 ms output queue in `room_io`:** the SDK pushes the first frame to the audio source as soon as TTS produces it, and LiveKit's "speaking" time is stamped there. The queue only holds audio that is ahead of playout.
+
+The browser leg comes to about 450–500 ms in total: about 200 ms uplink and 250–300 ms downlink. Nearly all of it is ordinary WebRTC transport from Dhaka, and none of it can be cut much from the app.
+
+**After FLU-73 and FLU-74 (27 turns, 2026-10-27):** browser p50 1761 ms, p90 2292 ms, against the FLU-63 baseline of 1789 / 2250. On individual turns the FLU-73 changes save tens to a few hundred milliseconds, but the model's first-token time (p50 392 ms, p90 960 ms) varies more than that. Cartesia's first audible audio takes 262 / 409 ms. What remains is a product decision: a realistic gate, or the speech-to-speech fallback from `doc/voice-path.md`.
 
 ### Pronunciation
 
