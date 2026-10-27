@@ -110,7 +110,7 @@ Talk to Fluency with replies under a second, and get pronunciation feedback afte
 
 ### Exit gate
 
-- Time from the end of the learner's speech to the first reply audio: **p50 < 750 ms, p90 < 950 ms**, measured in the browser over a real network.
+- Time from the end of the learner's speech to the first reply audio: **p50 < 1.6 s, p90 < 2.2 s**, measured in the browser over a real network (`pnpm voice:bench`). This was p50 < 750 ms and p90 < 950 ms until 2026-10-27. FLU-72 to FLU-75 showed the cascaded pipeline's floor from Dhaka is about 800 ms; see `doc/voice-path.md`, Decision 2.
 - Zero voice turns blocked on pronunciation scoring.
 - Quota and consent checked by tests.
 

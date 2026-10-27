@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { gateVerdict, parseLatencyArgs, summarizeLatency, type LatencySummary } from "./latency.ts";
+import {
+  GATE_P50_MS,
+  GATE_P90_MS,
+  gateVerdict,
+  parseLatencyArgs,
+  summarizeLatency,
+  type LatencySummary,
+} from "./latency.ts";
 
 describe("summarizeLatency", () => {
   it("returns null on an empty array", () => {
@@ -32,33 +39,33 @@ describe("gateVerdict", () => {
     expect(gateVerdict(summary)).toBe("too few turns");
   });
 
-  it("returns 'pass' for 20 turns with p50 749 and p90 949", () => {
+  it("returns 'pass' for 20 turns just under both limits", () => {
     const summary: LatencySummary = {
       n: 20,
-      p50: 749,
-      p90: 949,
+      p50: GATE_P50_MS - 1,
+      p90: GATE_P90_MS - 1,
       min: 400,
       max: 1000,
     };
     expect(gateVerdict(summary)).toBe("pass");
   });
 
-  it("returns 'fail' when p50 is 750", () => {
+  it("returns 'fail' when p50 is at the limit", () => {
     const summary: LatencySummary = {
       n: 20,
-      p50: 750,
-      p90: 900,
+      p50: GATE_P50_MS,
+      p90: GATE_P90_MS - 1,
       min: 400,
       max: 1000,
     };
     expect(gateVerdict(summary)).toBe("fail");
   });
 
-  it("returns 'fail' when p90 is 950", () => {
+  it("returns 'fail' when p90 is at the limit", () => {
     const summary: LatencySummary = {
       n: 20,
-      p50: 700,
-      p90: 950,
+      p50: GATE_P50_MS - 1,
+      p90: GATE_P90_MS,
       min: 400,
       max: 1000,
     };

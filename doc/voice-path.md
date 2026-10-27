@@ -4,7 +4,7 @@ Status: **decided (user, 2026-10-26).** Claude drafted it the same day from the 
 
 ## What it is
 
-Phase 4 replaces Web Speech with a live voice loop. Its exit gate is **p50 < 750 ms and p90 < 950 ms** from the end of the learner's speech to the first reply audio, measured in the browser. This record picks the four parts of that loop: the voice path, the live model, the TTS vendor and the pronunciation mode. Tasks 09–16 (FLU-59 to FLU-66) are specified against it.
+Phase 4 replaces Web Speech with a live voice loop. Its exit gate was **p50 < 750 ms and p90 < 950 ms** from the end of the learner's speech to the first reply audio, measured in the browser. It is now p50 < 1.6 s and p90 < 2.2 s; see Decision 2. This record picks the four parts of that loop: the voice path, the live model, the TTS vendor and the pronunciation mode. Tasks 09–16 (FLU-59 to FLU-66) are specified against it.
 
 ## Summary
 
@@ -89,6 +89,16 @@ If preemptive generation hides most of Flux's 260 ms, and the data centre saves 
 - Gemma uses the same `lib/prompts.ts` prompt as Claude. Before FLU-59 ships, run a wider quality pass on all 4 scenarios and the 3 levels.
 
 **Decided:** Gemma 4 31B for voice turns. Voice and text replies come from different models.
+
+**Revisited in FLU-75 (2026-10-27): keep Gemma 4 31B, and warm the prompt cache.** In the deployed worker, Gemma's first token took p50 392 ms and p90 960 ms over 81 turns. That's a worse tail than the 532 ms p90 benchmarked above. The tail isn't the model; it's when the call happens:
+
+- **The first two turns of a session were slow:** p50 ~900 ms, with 14 of 18 calls over 700 ms. Turns 3–9 were mostly 340–500 ms.
+- **Cold prompts are slower.** A text-only probe from Dhaka sent the real live-voice prompt with a random prefix, so the first call couldn't hit a cache. The cold first call took p50 578 ms (407–1353). The same request repeated took 458 ms. A new learner turn on the already-sent system prompt took 415 ms (393–542). The model server caches each prompt's prefix, and the first request with a session's system prompt pays for it.
+- **A warm-up fixes it.** The worker now sends the session's real prompt and history once while the room connects (`warmPromptCache` in `worker/llm-warmup.ts`). It reads the first chunk and stops. In a 3-learner check the warm-up took 1.0–1.1 s, and turns 1–2 then reached the first token in 336–357 ms, against 835–1630 ms before.
+
+None of the other LiveKit Inference models comes close to Gemma at p50 (836 ms and up above), so switching wouldn't cut the tail. What's left of the tail, an occasional ~1 s first token on a later turn, is the provider's variance.
+
+**The gate (decided 2026-10-27, FLU-75).** The original gate of p50 < 750 ms and p90 < 950 ms can't be met with this pipeline from Dhaka. The floor without the model and TTS is about 800 ms (`doc/voice-worker.md`, Latency). Before the warm-up, 27 turns measured p50 1761 ms and p90 2292 ms. The warm-up removes most of the slow first-token turns, which were about 2 in 9. The gate is now **p50 < 1.6 s and p90 < 2.2 s**, measured in the browser with `pnpm voice:bench` (`GATE_P50_MS` and `GATE_P90_MS` in `scripts/voice/latency.ts`). It still needs a 27-turn run to confirm it passes, once voice minutes allow.
 
 ## Decision 3: TTS vendor
 

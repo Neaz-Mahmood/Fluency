@@ -56,7 +56,9 @@ All models run through **LiveKit Inference**, requiring only `LIVEKIT_API_KEY` a
 
 Katie's speed follows the learner's listening level, falling back to the speaking level (`ttsSpeedForLevel` in `worker/job.ts`): A1 0.8, A2 0.9, B1 and up 1.0, and 0.9 before placement. The voice is the same at every level.
 
-Turn handling enables preemptive generation (`turnHandling: { preemptiveGeneration: { enabled: true, preemptiveTts: true } }`), drafting model replies on eager end-of-turn signals to cut latency. `preemptiveTts` (FLU-73) starts Katie's audio on the draft too. Without it, TTS waited for the end of turn even when the draft's first token was ready, which cost 250–330 ms on those turns. Each reply's leading near-silent frames (below -60 dBFS, at most 300 ms) are dropped before they're sent (`trimLeadingSilence` in `worker/tts-audio.ts`), so the learner hears the first word up to 150 ms sooner. The 750 ms target isn't met yet: the 2026-10-26 prototype measured about 1.6 s end to end on a warm turn. The browser measurement (see Latency) is the number the gate uses.
+While the room connects, the worker sends the model the session's prompt once and stops at the first chunk (`warmPromptCache` in `worker/llm-warmup.ts`), so the learner's first turn finds it in the model server's prompt cache (FLU-75). It logs `[voice] prompt cache warm-up: N ms`.
+
+Turn handling enables preemptive generation (`turnHandling: { preemptiveGeneration: { enabled: true, preemptiveTts: true } }`), drafting model replies on eager end-of-turn signals to cut latency. `preemptiveTts` (FLU-73) starts Katie's audio on the draft too. Without it, TTS waited for the end of turn even when the draft's first token was ready, which cost 250–330 ms on those turns. Each reply's leading near-silent frames (below -60 dBFS, at most 300 ms) are dropped before they're sent (`trimLeadingSilence` in `worker/tts-audio.ts`), so the learner hears the first word up to 150 ms sooner. The browser measurement (see Latency) is the number the gate uses: p50 < 1.6 s and p90 < 2.2 s, reset from 750 / 950 ms on 2026-10-27 (`doc/voice-path.md`, Decision 2).
 
 ### Exchange collection and database persistence
 
@@ -96,11 +98,11 @@ The browser number is larger than the worker's `[voice] … e2e` log line: it ad
 | Worker `llmTtft` (Gemma 4 31B)               | 367 ms  | 922 ms  |
 | Worker `ttsTtfb` (Cartesia)                  | 143 ms  | 154 ms  |
 
-The gate (p50 < 750 ms, p90 < 950 ms) fails. The worker's own `e2e` is already above 750 ms at p50. The browser adds a further ~700 ms at p50 for the network, the playout buffer, and the gap between the last audible sound and the start of Flux's end-of-turn timing. When the worker ran on a Mac in Dhaka (2026-10-26, 14 turns), it was p50 1859 ms and p90 2538 ms.
+The gate at the time (p50 < 750 ms, p90 < 950 ms) fails. The worker's own `e2e` is already above 750 ms at p50. The browser adds a further ~700 ms at p50 for the network, the playout buffer, and the gap between the last audible sound and the start of Flux's end-of-turn timing. When the worker ran on a Mac in Dhaka (2026-10-26, 14 turns), it was p50 1859 ms and p90 2538 ms.
 
 A hidden or throttled browser tab (tick gap > 100 ms) or an audio onset with a noisy microphone/overlap (< 100 ms) skips timing for that turn rather than reporting a misleading number. When the reply is saved, the worker announces its ID via the `fluency.reply_turn_id` participant attribute; the browser then saves the pending measurement to `session_turns.speech_end_to_audio_ms` via a server action.
 
-Running `pnpm voice:latency [--since YYYY-MM-DD] [--learner <uuid>]` reports p50 and p90 against the exit gate (p50 < 750 ms, p90 < 950 ms). At least 20 turns are required before issuing a pass/fail verdict.
+Running `pnpm voice:latency [--since YYYY-MM-DD] [--learner <uuid>]` reports p50 and p90 against the exit gate (p50 < 1.6 s, p90 < 2.2 s). At least 20 turns are required before issuing a pass/fail verdict.
 
 #### The bench and the per-turn timeline (FLU-72)
 
@@ -163,7 +165,7 @@ The downlink looked like a surprise, but FLU-74 explained most of it. The worker
 - Flux's end of turn, about 380 ms on a normal turn;
 - the downlink, about 250–300 ms (FLU-74).
 
-Even with the model and TTS fully hidden by preemptive generation, that's about 800 ms, and in practice the model and TTS are rarely fully hidden. So the 750 ms p50 gate can't be met by tuning this pipeline from Dhaka.
+Even with the model and TTS fully hidden by preemptive generation, that's about 800 ms, and in practice the model and TTS are rarely fully hidden. So the original 750 ms p50 gate can't be met by tuning this pipeline from Dhaka.
 
 **The browser leg (FLU-74, 2026-10-27).** The bench adds `LEVEL_PROBE` to the page: it polls the agent track's inbound-rtp `audioLevel` every 10 ms and logs when the decoded audio rises after a silence (`[voice] bench: agent level at <epoch ms>`). The downlink then splits into two parts, over 9 turns:
 
@@ -178,7 +180,7 @@ Ruled out:
 
 The browser leg comes to about 450–500 ms in total: about 200 ms uplink and 250–300 ms downlink. Nearly all of it is ordinary WebRTC transport from Dhaka, and none of it can be cut much from the app.
 
-**After FLU-73 and FLU-74 (27 turns, 2026-10-27):** browser p50 1761 ms, p90 2292 ms, against the FLU-63 baseline of 1789 / 2250. On individual turns the FLU-73 changes save tens to a few hundred milliseconds, but the model's first-token time (p50 392 ms, p90 960 ms) varies more than that. Cartesia's first audible audio takes 262 / 409 ms. What remains is a product decision: a realistic gate, or the speech-to-speech fallback from `doc/voice-path.md`.
+**After FLU-73 and FLU-74 (27 turns, 2026-10-27):** browser p50 1761 ms, p90 2292 ms, against the FLU-63 baseline of 1789 / 2250. On individual turns the FLU-73 changes save tens to a few hundred milliseconds, but the model's first-token time (p50 392 ms, p90 960 ms) varies more than that. Most of that tail was a cold prompt cache on the first two turns of a session. The warm-up at session start now removes it (FLU-75, `doc/voice-path.md` Decision 2). Cartesia's first audible audio takes 262 / 409 ms. What remains is a product decision: a realistic gate, or the speech-to-speech fallback from `doc/voice-path.md`.
 
 ### Pronunciation
 

@@ -8,8 +8,10 @@ import { sessions, sessionTurns } from "@/lib/db/schema";
 import { isUuid } from "@/lib/learner-id";
 import { percentile } from "./ttft.ts";
 
-export const GATE_P50_MS = 750;
-export const GATE_P90_MS = 950;
+// Set 2026-10-27 (FLU-75). The original 750 / 950 ms can't be met by this pipeline from Dhaka: the
+// floor without the model and TTS is about 800 ms (doc/voice-path.md, Decision 2).
+export const GATE_P50_MS = 1600;
+export const GATE_P90_MS = 2200;
 // Fewer turns than this are too few to call the gate.
 export const MIN_GATE_TURNS = 20;
 

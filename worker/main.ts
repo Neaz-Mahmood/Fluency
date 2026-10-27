@@ -41,6 +41,7 @@ import {
   ScoringAgent,
   type AzureConfig,
 } from "./pronunciation";
+import { warmPromptCache, warmupContext } from "./llm-warmup";
 import { formatTimeline, TimedAgent, TurnTimeline } from "./timeline";
 import {
   concatPcm,
@@ -86,12 +87,18 @@ export default defineAgent({
       chatCtx.addMessage({ role: turn.role, content: turn.content });
     }
 
+    const tutorLlm = new inference.LLM({ model: LLM_MODEL });
+    // Runs while the room connects, so the learner's first turn finds the prompt cached (FLU-75).
+    void warmPromptCache(tutorLlm, warmupContext(context.instructions, chatCtx)).then((ms) =>
+      console.log(`[voice] prompt cache warm-up: ${ms === null ? "failed" : `${ms} ms`}`),
+    );
+
     const session = new voice.AgentSession({
       stt: new inference.STT({
         model: STT_MODEL,
         modelOptions: { eager_eot_threshold: EAGER_EOT_THRESHOLD },
       }),
-      llm: new inference.LLM({ model: LLM_MODEL }),
+      llm: tutorLlm,
       tts: new inference.TTS({
         model: TTS_MODEL,
         voice: TTS_VOICE_KATIE,
