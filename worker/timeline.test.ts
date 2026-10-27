@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatTimeline, frameDbfs, TurnTimeline } from "./timeline";
+import { formatTimeline, TurnTimeline } from "./timeline";
 
 const STOP = 1_000_000;
 
@@ -84,18 +84,5 @@ describe("TurnTimeline", () => {
       lastWordEndAt: 3,
     });
     expect(timeline.take()).toEqual({ llmCalls: [], ttsCalls: [], lastWordEndAt: undefined });
-  });
-});
-
-describe("frameDbfs", () => {
-  it("is 0 dBFS at full scale and floors silence at -100", () => {
-    expect(frameDbfs(new Int16Array(480).fill(-32768))).toBeCloseTo(0);
-    expect(frameDbfs(new Int16Array(480))).toBe(-100);
-    expect(frameDbfs(new Int16Array(0))).toBe(-100);
-  });
-
-  it("puts a quiet frame below the browser's -50 dBFS threshold and speech above it", () => {
-    expect(frameDbfs(new Int16Array(480).fill(50))).toBeLessThan(-50);
-    expect(frameDbfs(new Int16Array(480).fill(3000))).toBeGreaterThan(-50);
   });
 });

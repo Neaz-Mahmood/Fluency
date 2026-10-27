@@ -98,7 +98,8 @@ export default defineAgent({
         language: TTS_LANGUAGE,
         modelOptions: { speed: context.ttsSpeed },
       }),
-      turnHandling: { preemptiveGeneration: { enabled: true } },
+      // preemptiveTts starts the voice on the draft too, instead of at the end of turn (FLU-73).
+      turnHandling: { preemptiveGeneration: { enabled: true, preemptiveTts: true } },
     });
 
     let sessionId = context.sessionId;

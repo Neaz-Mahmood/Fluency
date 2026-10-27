@@ -9,6 +9,8 @@ export const AGENT_NAME = "fluency-tutor";
 export const STT_MODEL = "deepgram/flux-general-en";
 
 // Flux eager_eot_threshold for preemptive generation; see doc/voice-path.md (The latency budget).
+// 0.4 was tried in FLU-73: drafts still started about 280 ms before the end of turn, so it only
+// added draft calls.
 export const EAGER_EOT_THRESHOLD = 0.5;
 
 // Gemma 4 31B through LiveKit Inference; see doc/voice-path.md (Decision 2).

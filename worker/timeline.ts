@@ -3,6 +3,7 @@ import type { AudioFrame } from "@livekit/rtc-node";
 import { ReadableStream, TransformStream } from "node:stream/web";
 
 import { AGENT_AUDIO_DBFS } from "@/lib/live-voice";
+import { frameDbfs, trimLeadingSilence } from "./tts-audio";
 
 // Where each reply's time goes (FLU-72). LiveKit reports each stage's own duration; this records
 // when each one happened, on the worker's clock, so the gaps between stages show up too.
@@ -129,15 +130,6 @@ function watchFirst<T>(
   );
 }
 
-// RMS level of a 16-bit PCM frame in dBFS, floored at -100, like rmsDbfs in lib/live-voice.ts.
-export function frameDbfs(samples: Int16Array): number {
-  if (samples.length === 0) return -100;
-  let sum = 0;
-  for (const sample of samples) sum += (sample / 32768) ** 2;
-  const dbfs = 10 * Math.log10(sum / samples.length);
-  return Number.isFinite(dbfs) && dbfs > -100 ? dbfs : -100;
-}
-
 function hasText(chunk: unknown): boolean {
   if (typeof chunk === "string") return chunk.length > 0;
   return typeof chunk === "object" && chunk !== null && "id" in chunk
@@ -145,7 +137,8 @@ function hasText(chunk: unknown): boolean {
     : false;
 }
 
-// The tutor agent with its LLM and TTS calls timed. Each call runs exactly as the default node.
+// The tutor agent with its STT, LLM and TTS calls timed. Each call runs as the default node, except
+// that TTS audio has its leading silence trimmed (worker/tts-audio.ts).
 export class TimedAgent extends voice.Agent {
   // A plain field, not a parameter property: Node's type stripping can't run those.
   protected readonly timeline: TurnTimeline;
@@ -214,7 +207,7 @@ export class TimedAgent extends voice.Agent {
     const audio = await voice.Agent.default.ttsNode(this, input, modelSettings);
     if (!audio) return audio;
     const timed = watchFirst<AudioFrame>(
-      audio,
+      audio.pipeThrough(trimLeadingSilence<AudioFrame>()),
       () => true,
       () => {
         call.firstOutputAt = Date.now();

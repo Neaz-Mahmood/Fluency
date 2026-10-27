@@ -56,7 +56,7 @@ All models run through **LiveKit Inference**, requiring only `LIVEKIT_API_KEY` a
 
 Katie's speed follows the learner's listening level, falling back to the speaking level (`ttsSpeedForLevel` in `worker/job.ts`): A1 0.8, A2 0.9, B1 and up 1.0, and 0.9 before placement. The voice is the same at every level.
 
-Turn handling enables preemptive generation (`turnHandling: { preemptiveGeneration: { enabled: true } }`), drafting model replies on eager end-of-turn signals to cut latency. The 750 ms target isn't met yet: the 2026-10-26 prototype measured about 1.6 s end to end on a warm turn. The browser measurement (see Latency) is the number the gate uses.
+Turn handling enables preemptive generation (`turnHandling: { preemptiveGeneration: { enabled: true, preemptiveTts: true } }`), drafting model replies on eager end-of-turn signals to cut latency. `preemptiveTts` (FLU-73) starts Katie's audio on the draft too. Without it, TTS waited for the end of turn even when the draft's first token was ready, which cost 250–330 ms on those turns. Each reply's leading near-silent frames (below -60 dBFS, at most 300 ms) are dropped before they're sent (`trimLeadingSilence` in `worker/tts-audio.ts`), so the learner hears the first word up to 150 ms sooner. The 750 ms target isn't met yet: the 2026-10-26 prototype measured about 1.6 s end to end on a warm turn. The browser measurement (see Latency) is the number the gate uses.
 
 ### Exchange collection and database persistence
 
@@ -141,7 +141,7 @@ Both sides log one line per reply. The browser line is `[voice] speech end → f
 | **Worker total: first audio frame**                           | 996 | 1731 |
 
 - **Preemptive generation is used on 36 of 54 turns.** The draft starts only about 250–400 ms before the end of turn, while the model's first token takes 376 ms at p50. So the reply still waits for the model on most turns. On the other 18 turns, Flux's early end-of-turn signal never came, and the call started at the end of turn (about +300 ms).
-- **The end-of-turn tail is Flux finalizing late.** On 5 of 27 turns, the final transcript arrived 0.9–1.0 s after the speech ended, and the end of turn waited for it.
+- **The end-of-turn tail is a pause, not slow finals** (corrected in FLU-73). On about 1 turn in 5, the learner paused mid-sentence. LiveKit's `stoppedSpeakingAt` lands on the pause, and the learner's last word comes 0.7–1.0 s later. Measured from the real last word, the end of turn took 60–100 ms on those turns. On normal turns it takes about 380 ms. The table's end-of-turn p90, and the stages measured from `stoppedSpeakingAt`, are inflated by those turns. The browser number isn't affected, because it times from the learner's real last sound.
 - **`preemptiveTts` is off,** so TTS starts only when the turn is committed. That cost 250–330 ms on the turns where the first token was ready before the end of turn.
 
 The run with wall-clock times (9 turns) splits the browser number into three legs. The clock offset of about ±15 ms moves time between the uplink and the downlink, but not the total.
@@ -153,7 +153,17 @@ The run with wall-clock times (9 turns) splits the browser number into three leg
 | Downlink: audible frame out → audible in the browser | 477 ms | 209–716  |
 | **Sum (browser measured p50 1641 ms)**               | 1636   |          |
 
-The downlink is the surprise. The network round trip is 60–100 ms and the jitter buffer averages 75–120 ms, which explains only about 160 ms. The other ~300 ms, which varies from turn to turn, comes after the worker hands its audio to LiveKit. The 200 ms output queue in `room_io` and the receive-side buffering after the agent's silence between replies are the first suspects (FLU-74). Flux's last word lands within ±90 ms of LiveKit's `stoppedSpeakingAt` on 8 of 9 turns, so the worker's start point is accurate.
+The downlink is the surprise. The network round trip is 60–100 ms and the jitter buffer averages 75–120 ms, which explains only about 160 ms. The other ~300 ms, which varies from turn to turn, comes after the worker hands its audio to LiveKit. The 200 ms output queue in `room_io` and the receive-side buffering after the agent's silence between replies are the first suspects (FLU-74). Flux's last word lands within ±90 ms of LiveKit's `stoppedSpeakingAt` on 8 of 9 turns, so the worker's start point is accurate except on turns with a mid-sentence pause.
+
+**After FLU-73 (2026-10-27, 9 turns):** browser p50 1540 ms, p90 2690 ms. Leading silence went from 80 ms to about 0, and on turns with an early draft the audio was ready at the end of turn. Nine turns are too few to compare p50s with confidence. Lowering `eager_eot_threshold` to 0.4 didn't move drafts earlier (still about 280 ms before the end of turn), so it stays at 0.5.
+
+**The floor with this pipeline.** From the end of the learner's last word, three parts don't depend on the model or the voice:
+
+- the uplink, about 200 ms;
+- Flux's end of turn, about 380 ms on a normal turn;
+- the downlink, about 480 ms.
+
+Even with the model and TTS fully hidden by preemptive generation, that's about 1060 ms. Cutting the downlink's unexplained ~300 ms (FLU-74) would still leave about 760 ms. So the 750 ms p50 gate can't be met by tuning this pipeline from Dhaka. What remains is a product decision: a realistic gate, or the speech-to-speech fallback from `doc/voice-path.md`.
 
 ### Pronunciation
 
