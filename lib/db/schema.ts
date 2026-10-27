@@ -20,6 +20,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import type { FeedbackItem, VocabularyItem } from "../feedback";
+import type { PronunciationTip } from "../pronunciation-recap";
 import type { PhonemeMismatch, WeakWord } from "../pronunciation-score";
 
 // Learner model and FSRS schema. Based on the research schema, with the changes in
@@ -261,6 +262,9 @@ export const sessionFeedback = pgTable("session_feedback", {
   status: feedbackStatus("status").notNull().default("pending"),
   items: jsonb("items").$type<StoredFeedbackItem[]>().notNull().default([]),
   vocabulary: jsonb("vocabulary").$type<VocabularyItem[]>().notNull().default([]),
+  // Live voice sessions only (FLU-65). Null when the session had no spoken turns or none was scored.
+  pronunciationStatus: feedbackStatus("pronunciation_status"),
+  pronunciationTips: jsonb("pronunciation_tips").$type<PronunciationTip[]>().notNull().default([]),
   ...timestamps,
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

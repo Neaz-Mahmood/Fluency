@@ -43,6 +43,13 @@
       "when": 1793022168817,
       "tag": "0005_pronunciation_scores",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793110051316,
+      "tag": "0006_pronunciation_recap",
+      "breakpoints": true
     }
   ]
 }

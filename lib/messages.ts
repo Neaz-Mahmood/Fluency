@@ -137,6 +137,22 @@ const en = {
     saved: "Saved",
     saveFailed: "Couldn't save. Try again.",
   },
+  pronunciation: {
+    title: "Pronunciation",
+    pending: "Checking your pronunciation…",
+    failed: "Pronunciation feedback could not be prepared for this conversation.",
+    accuracy: "Accuracy",
+    fluency: "Fluency",
+    prosody: "Rhythm and intonation",
+    tips: "Tips",
+    sounds: "Sounds to practice",
+    inWords: "In",
+    noPatterns:
+      "No sound patterns stood out this time. Automatic scoring often misses th, f, v and z sounds, so keep practicing them.",
+    words: "Words to practice",
+    scoredTurns: "Spoken turns scored",
+    scoreNote: "Scores are out of 100, from automatic speech assessment.",
+  },
   writing: {
     title: "Writing coach",
     intro:
@@ -350,6 +366,22 @@ const bn: Messages = {
     saving: "রাখা হচ্ছে…",
     saved: "রাখা হয়েছে",
     saveFailed: "রাখা যায়নি। আবার চেষ্টা করুন।",
+  },
+  pronunciation: {
+    title: "উচ্চারণ",
+    pending: "আপনার উচ্চারণ যাচাই করা হচ্ছে…",
+    failed: "এই কথোপকথনের উচ্চারণ ফিডব্যাক তৈরি করা যায়নি।",
+    accuracy: "নির্ভুলতা",
+    fluency: "সাবলীলতা",
+    prosody: "ছন্দ ও সুর",
+    tips: "পরামর্শ",
+    sounds: "যে ধ্বনিগুলো অনুশীলন করবেন",
+    inWords: "যে শব্দে",
+    noPatterns:
+      "এবার কোনো ধ্বনির সমস্যা আলাদা করে ধরা পড়েনি। স্বয়ংক্রিয় যাচাই প্রায়ই th, f, v আর z ধ্বনির ভুল ধরতে পারে না, তাই এগুলোর অনুশীলন চালিয়ে যান।",
+    words: "যে শব্দগুলো অনুশীলন করবেন",
+    scoredTurns: "যাচাই করা কথার সংখ্যা",
+    scoreNote: "স্কোর ১০০-এর মধ্যে, স্বয়ংক্রিয় উচ্চারণ যাচাই থেকে।",
   },
   writing: {
     title: "লেখার কোচ",

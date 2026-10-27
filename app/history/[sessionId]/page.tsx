@@ -12,6 +12,8 @@ import { getFeedback } from "@/lib/feedback-store";
 import { getLearner } from "@/lib/learner";
 import { isUuid } from "@/lib/learner-id";
 import { getMessages } from "@/lib/messages";
+import { summarizeSessionPronunciation } from "@/lib/pronunciation-recap";
+import { loadSessionScores } from "@/lib/pronunciation-store";
 import { findSession, loadTurns } from "@/lib/sessions";
 
 export const metadata: Metadata = {
@@ -49,6 +51,12 @@ async function HistoryDetail({ params }: { params: Params }) {
     session.mode !== "placement"
       ? await getFeedback(getDb(), { learnerId: learner.learnerId, sessionId })
       : null;
+  const pronunciation =
+    feedback?.pronunciationStatus === "done"
+      ? summarizeSessionPronunciation(
+          await loadSessionScores(getDb(), { learnerId: learner.learnerId, sessionId }),
+        )
+      : null;
   const savedItems =
     feedback?.status === "done"
       ? await savedTargetItems(getDb(), learner.learnerId, [
@@ -84,6 +92,7 @@ async function HistoryDetail({ params }: { params: Params }) {
           sessionId={sessionId}
           savedItems={savedItems}
           feedback={feedback}
+          pronunciation={pronunciation}
           messages={messages}
         />
       ) : null}

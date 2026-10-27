@@ -197,6 +197,8 @@ Each learner turn gets a scripted Azure pronunciation assessment, with its Flux 
 
 In a 2026-10-26 test, 12 s of accented reading was scored in 5.2 s.
 
+The recap turns these rows into a pronunciation section after the session (FLU-65, [feedback.md](./feedback.md)).
+
 ### How to run
 
 Run the worker:

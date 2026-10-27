@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { BN_EN_PRONUNCIATION_PATTERNS, findPattern } from "@/lib/pronunciation-patterns";
+import {
+  AZURE_TO_CATALOG,
+  BN_EN_PRONUNCIATION_PATTERNS,
+  catalogCodeFor,
+  findPattern,
+} from "@/lib/pronunciation-patterns";
 
 describe("BN_EN_PRONUNCIATION_PATTERNS", () => {
   it("contains exactly 16 patterns", () => {
@@ -77,5 +82,27 @@ describe("findPattern", () => {
     expect(findPattern("IPA:/xyz/_to_[abc]")).toBeUndefined();
     expect(findPattern("PROSODY:unknown")).toBeUndefined();
     expect(findPattern("")).toBeUndefined();
+  });
+});
+
+describe("catalogCodeFor", () => {
+  it("maps 'w' and 'b' to IPA:/w/_to_[v]", () => {
+    expect(catalogCodeFor("w", "b")).toBe("IPA:/w/_to_[v]");
+  });
+
+  it("maps 's' and 'i' to IPA:/sC/_to_[isC]", () => {
+    expect(catalogCodeFor("s", "i")).toBe("IPA:/sC/_to_[isC]");
+  });
+
+  it("returns undefined for an unknown pair", () => {
+    expect(catalogCodeFor("x", "y")).toBeUndefined();
+  });
+
+  it("maps every AZURE_TO_CATALOG value to an existing catalog pattern", () => {
+    for (const code of Object.values(AZURE_TO_CATALOG)) {
+      const pattern = findPattern(code);
+      expect(pattern).toBeDefined();
+      expect(pattern?.code).toBe(code);
+    }
   });
 });

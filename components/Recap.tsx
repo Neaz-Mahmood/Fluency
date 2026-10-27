@@ -1,17 +1,24 @@
+import { PronunciationRecap } from "@/components/PronunciationRecap";
 import { RecapRefresher } from "@/components/RecapRefresher";
 import { SaveCardButton } from "@/components/SaveCardButton";
 import type { SessionFeedback } from "@/lib/db/schema";
 import type { Messages } from "@/lib/messages";
+import type { SessionPronunciation } from "@/lib/pronunciation-recap";
 
 export function Recap({
   sessionId,
   savedItems,
   feedback,
+  pronunciation,
   messages,
 }: {
   sessionId: string;
   savedItems: Set<string>;
-  feedback: Pick<SessionFeedback, "status" | "items" | "vocabulary">;
+  feedback: Pick<
+    SessionFeedback,
+    "status" | "items" | "vocabulary" | "pronunciationStatus" | "pronunciationTips"
+  >;
+  pronunciation: SessionPronunciation | null;
   messages: Messages;
 }) {
   return (
@@ -21,10 +28,7 @@ export function Recap({
       </h2>
 
       {feedback.status === "pending" ? (
-        <>
-          <p className="text-sm leading-relaxed text-oceanic-muted">{messages.recap.pending}</p>
-          <RecapRefresher />
-        </>
+        <p className="text-sm leading-relaxed text-oceanic-muted">{messages.recap.pending}</p>
       ) : feedback.status === "failed" ? (
         <p className="text-sm leading-relaxed text-oceanic-muted">{messages.recap.failed}</p>
       ) : (
@@ -145,6 +149,19 @@ export function Recap({
           ) : null}
         </>
       )}
+
+      {feedback.pronunciationStatus !== null ? (
+        <PronunciationRecap
+          status={feedback.pronunciationStatus}
+          tips={feedback.pronunciationTips}
+          summary={pronunciation}
+          messages={messages}
+        />
+      ) : null}
+
+      {feedback.status === "pending" || feedback.pronunciationStatus === "pending" ? (
+        <RecapRefresher />
+      ) : null}
     </section>
   );
 }

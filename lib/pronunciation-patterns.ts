@@ -141,3 +141,29 @@ export const BN_EN_PRONUNCIATION_PATTERNS: readonly PronunciationPattern[] = [
 export function findPattern(code: string): PronunciationPattern | undefined {
   return BN_EN_PRONUNCIATION_PATTERNS.find((pattern) => pattern.code === code);
 }
+
+// Azure phoneme mismatches ("expected>heard", Azure's top NBest guess) that point at a catalog
+// pattern. w>b and s>i came from the FLU-57 recordings; s>i is the vowel inserted before s +
+// consonant. /t/ → [ʈ] and the prosody patterns have no en-US phoneme to point at, so they need
+// other signals (accuracy drops, prosody feedback).
+export const AZURE_TO_CATALOG: Record<string, string> = {
+  "v>b": "IPA:/v/_to_[b]",
+  "w>v": "IPA:/w/_to_[v]",
+  "w>b": "IPA:/w/_to_[v]",
+  "s>i": "IPA:/sC/_to_[isC]",
+  "f>p": "IPA:/f/_to_[pʰ]",
+  "z>dʒ": "IPA:/z/_to_[dʒ]",
+  "θ>t": "IPA:/θ/_to_[t̪ʰ]",
+  "ð>d": "IPA:/ð/_to_[d̪]",
+  "ʃ>s": "IPA:/ʃ/_to_[s]",
+  "æ>ɛ": "IPA:/æ/_to_[e]",
+  "ʌ>ɑ": "IPA:/ʌ/_to_[a]",
+  "ɪ>i": "IPA:/ɪ/_to_[i]",
+  "eɪ>ɛ": "IPA:/eɪ/_to_[e]",
+  "oʊ>ɔ": "IPA:/oʊ/_to_[o]",
+};
+
+// The catalog code for an Azure phoneme mismatch (expected sound, Azure's top guess), if any.
+export function catalogCodeFor(expected: string, heard: string): string | undefined {
+  return AZURE_TO_CATALOG[`${expected}>${heard}`];
+}

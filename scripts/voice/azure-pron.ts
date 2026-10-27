@@ -5,7 +5,11 @@ import { createRequire } from "node:module";
 import { basename, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { BN_EN_PRONUNCIATION_PATTERNS, findPattern } from "../../lib/pronunciation-patterns.ts";
+import {
+  AZURE_TO_CATALOG,
+  BN_EN_PRONUNCIATION_PATTERNS,
+  findPattern,
+} from "../../lib/pronunciation-patterns.ts";
 import {
   phonemeMismatches,
   weakWords,
@@ -14,6 +18,7 @@ import {
 } from "../../lib/pronunciation-score.ts";
 import { percentile } from "./ttft.ts";
 
+export { AZURE_TO_CATALOG } from "../../lib/pronunciation-patterns.ts";
 export { phonemeMismatches, weakWords } from "../../lib/pronunciation-score.ts";
 export type {
   PhonemeMismatch as Mismatch,
@@ -29,22 +34,6 @@ createRequire(import.meta.url)(
 
 export const READING_PARAGRAPH =
   "Last Friday my friend Zara and I visited the zoo near Mirpur. It was very busy, so we waited in the shade and drank some coffee. She showed me a video of seven white swans on the west lake. Then we took a bus from the station back to the city and bought a cake and a cup of tea for her brother. I think the weather was better than the weather this time last year. Wasn't it a lovely day?";
-
-// Draft for task 15. Patterns without an entry (/t/ → [ʈ], /sC/ → [isC], the prosody patterns) have no en-US phoneme to point at; they need other signals (accuracy drops, inserted syllables, prosody feedback).
-export const AZURE_TO_CATALOG: Record<string, string> = {
-  "v>b": "IPA:/v/_to_[b]",
-  "w>v": "IPA:/w/_to_[v]",
-  "f>p": "IPA:/f/_to_[pʰ]",
-  "z>dʒ": "IPA:/z/_to_[dʒ]",
-  "θ>t": "IPA:/θ/_to_[t̪ʰ]",
-  "ð>d": "IPA:/ð/_to_[d̪]",
-  "ʃ>s": "IPA:/ʃ/_to_[s]",
-  "æ>ɛ": "IPA:/æ/_to_[e]",
-  "ʌ>ɑ": "IPA:/ʌ/_to_[a]",
-  "ɪ>i": "IPA:/ɪ/_to_[i]",
-  "eɪ>ɛ": "IPA:/eɪ/_to_[e]",
-  "oʊ>ɔ": "IPA:/oʊ/_to_[o]",
-};
 
 export function parseWav(buf: Buffer): {
   sampleRate: number;
