@@ -174,7 +174,7 @@ These are choices the plan doesn't make. Each one needs an owner before the phas
 | Decision | Default in this plan | Needed by |
 | --- | --- | --- |
 | Free-tier size. The research says both "three 5-minute sessions" (15 min) and "5 minutes/day". | 5 minutes/day, as three short sessions of 4 turns | Phase 4 |
-| Postgres host and database library (ORM or migration tool) | Any managed option that works with Next.js | Phase 2, week 1 |
+| Postgres host and database library (ORM or migration tool) | Decided: Postgres + Drizzle. Managed host is Supabase in Mumbai (ap-south-1), reached through the Session pooler (FLU-67, 2026-10-27) | Phase 2, week 1 |
 | Auth library (must support email/password, Google and the chosen database) | Chosen when Phase 5 login starts | Phase 5, week 12 |
 | Transactional email service (verification and password reset) | Chosen with the auth library | Phase 5, week 12 |
 | Voice path | Decided 2026-10-26 ([voice-path.md](./voice-path.md)): LiveKit Agents worker on LiveKit Cloud, Deepgram Flux and Gemma 4 31B through LiveKit Inference | Phase 4, week 7 |

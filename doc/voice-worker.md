@@ -125,6 +125,31 @@ pnpm voice:call --learner <uuid> [--scenario cafe] [--session <uuid>] <turn1.wav
 
 The script joins the room, streams 10 ms PCM audio frames to simulate microphone input, provides 8 seconds of silence for the agent to reply after each turn, logs transcriptions, and exits gracefully.
 
+### Deploying to LiveKit Cloud (FLU-67)
+
+The worker runs on LiveKit Cloud as agent `CA_mSn9FeBq5KuT` in region `ap-south` (Mumbai), which is the same AWS region as the Supabase database. `livekit.toml` holds the project and agent ID. The `Dockerfile` installs production dependencies only and runs `worker/main.ts start` with the same Node flags as `pnpm voice:worker`, without a build step. `.dockerignore` keeps `.env*` out of the build context.
+
+`lk` reads `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` from the environment, so no `lk cloud auth` is needed:
+
+```bash
+node --env-file=.env -e "require('child_process').spawnSync('lk',['agent','deploy'],{stdio:'inherit'})"
+# or with the variables exported in the shell:
+lk agent deploy          # build on LiveKit Cloud and roll out a new version
+lk agent status
+lk agent logs            # add --log-type=build for build logs
+lk agent update-secrets --secrets-file <file>
+```
+
+The agent's secrets are `DATABASE_URL` (the Supabase pooler URL, kept locally in the gitignored `.env.supabase`), `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`. LiveKit Cloud injects the `LIVEKIT_*` variables itself.
+
+Run migrations against Supabase with the URL from that file:
+
+```bash
+node --env-file=.env.supabase -e "require('child_process').execFileSync('pnpm',['db:migrate'],{stdio:'inherit'})"
+```
+
+`pnpm voice:call` reaches the deployed worker whenever no local `pnpm voice:worker dev` is registered under the same agent name. Its turns are saved to Supabase, so `--learner` must be a learner that exists there and has given voice consent. The test learner has `user_id` `flu67-smoke-test`.
+
 ## Notes
 
 - **No recording:** `session.start` passes `record: false`. By default, LiveKit Agents writes the session audio to `audio.ogg` in the OS temp folder and uploads audio, transcript and traces to LiveKit Cloud. Fluency stores no raw audio: the copy for Azure scoring is kept in memory only until its turn is scored.
@@ -132,4 +157,4 @@ The script joins the room, streams 10 ms PCM audio frames to simulate microphone
 - **English-only STT:** Deepgram Flux general English is used. Spoken Bangla words in A1/A2 turns may be dropped or turned into English-sounding guesses. FLU-68 tests this against `deepgram/flux-general-multi`.
 - **Enforcement hooks:** Quota limits and consent checks are verified when requesting a token (`POST /api/voice/token`). The running session is metered and cut off by the worker. A learner can go past the 300 s by the rest of the current reply plus the goodbye (8 s in testing: 308 s).
 - **Finish delay shortcut:** The 1.5 s wait before finishing a live session is a temporary shortcut to give the worker time to persist the final exchange before recap generation.
-- **Database connectivity & deployment:** The worker requires direct Postgres database access. As a result, it cannot be deployed to LiveKit Cloud until a managed Postgres database reachable from the cloud worker is configured (FLU-67).
+- **Database connectivity:** The deployed worker uses Supabase Postgres in Mumbai through the Session pooler (`aws-0-ap-south-1.pooler.supabase.com:5432`, user `postgres.<ref>`). The direct host `db.<ref>.supabase.co` has only an IPv6 address, so LiveKit Cloud can't reach it. Session mode keeps prepared statements working. The Data API is turned off: the app connects only as `postgres`, and RLS is off on every table.
