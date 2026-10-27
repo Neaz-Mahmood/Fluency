@@ -86,6 +86,18 @@ Latency from the end of the learner's speech to the first audible reply audio is
 
 The browser number is larger than the worker's `[voice] … e2e` log line: it adds the network, the browser's playout buffer and the time before the server's end-of-turn detection starts. In the 2026-10-26 headless Chrome test from Dhaka it was 600–900 ms above `e2e`.
 
+**Measured on the deployed worker (2026-10-27).** Headless Chrome ran in Dhaka on a home connection. A fake microphone played `out/flu63/fake-mic.wav` (9 turns), once for each of three test learners. The worker ran on LiveKit Cloud `ap-south`, and the app ran locally against Supabase.
+
+| Measure                                      | p50     | p90     |
+| -------------------------------------------- | ------- | ------- |
+| Browser: speech end → first audio (27 turns) | 1789 ms | 2250 ms |
+| Worker `e2e`                                 | 1082 ms | 1336 ms |
+| Worker `endOfTurn`                           | 384 ms  | 989 ms  |
+| Worker `llmTtft` (Gemma 4 31B)               | 367 ms  | 922 ms  |
+| Worker `ttsTtfb` (Cartesia)                  | 143 ms  | 154 ms  |
+
+The gate (p50 < 750 ms, p90 < 950 ms) fails. The worker's own `e2e` is already above 750 ms at p50. The browser adds a further ~700 ms at p50 for the network, the playout buffer, and the gap between the last audible sound and the start of Flux's end-of-turn timing. When the worker ran on a Mac in Dhaka (2026-10-26, 14 turns), it was p50 1859 ms and p90 2538 ms.
+
 A hidden or throttled browser tab (tick gap > 100 ms) or an audio onset with a noisy microphone/overlap (< 100 ms) skips timing for that turn rather than reporting a misleading number. When the reply is saved, the worker announces its ID via the `fluency.reply_turn_id` participant attribute; the browser then saves the pending measurement to `session_turns.speech_end_to_audio_ms` via a server action.
 
 Running `pnpm voice:latency [--since YYYY-MM-DD] [--learner <uuid>]` reports p50 and p90 against the exit gate (p50 < 750 ms, p90 < 950 ms). At least 20 turns are required before issuing a pass/fail verdict.
