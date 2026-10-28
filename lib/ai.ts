@@ -19,6 +19,7 @@ export type ReplyOptions = {
   model?: keyof typeof CLAUDE_MODELS;
   maxTokens?: number;
   label?: string;
+  cacheConversation?: boolean;
 };
 
 export function streamReply(selected: SelectedProvider, options: ReplyOptions): TextReply {
@@ -40,6 +41,7 @@ export function streamReply(selected: SelectedProvider, options: ReplyOptions): 
     model: options.model,
     maxTokens: options.maxTokens,
     label: options.label,
+    cacheConversation: options.cacheConversation,
   });
 }
 

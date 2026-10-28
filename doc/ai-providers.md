@@ -42,6 +42,7 @@ Supported key variables:
 - Uses the official `@anthropic-ai/sdk` client.
 - Model: `claude-sonnet-5-5` (exported as `CLAUDE_MODELS.conversation`). `claude-opus-5-5` is reserved for the future feedback pass and is not wired up.
 - Request shape: `messages.stream({ model, max_tokens: 1500, system, messages, output_config: { effort: "low" } })`.
+- Prompt caching: the system prompt is sent as one text block with `cache_control`, so a prompt at or above the model's minimum (512 tokens on Sonnet 5.5 and Opus 5.5) is cached and shorter ones simply aren't. `/api/chat` also passes `cacheConversation`, which adds top-level `cache_control`, so each turn reads the earlier history from the cache instead of paying full price for it again. Single calls such as feedback don't, because their transcript is never sent twice. OpenCode passes both through: a repeated typed-chat request read all 729 prompt tokens from the cache (2026-10-28).
 - Streams `content_block_delta` events whose `delta.type === "text_delta"` and yields the text fragments.
 - `abort()` calls `stream.abort()`, which cancels the in-flight HTTP request.
 - Each finished call logs one JSON line, `{"event":"claude_usage", ...}`, with the caller's `label` (`conversation`, `placement`, `feedback-conversation`, `feedback-writing`, `summary`, `pronunciation-tips`, `review`, `placement-assessment` or `eval`), the model, the four token counts and the stop reason. Cost per feature is measured from these lines.

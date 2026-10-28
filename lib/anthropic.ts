@@ -28,15 +28,19 @@ export function streamClaudeReply(options: {
   maxTokens?: number;
   // Names the call in the usage log line, e.g. "chat" or "feedback".
   label?: string;
+  // Multi-turn chats: cache the growing history too, so each turn rereads the last one from cache.
+  cacheConversation?: boolean;
 }): TextReply {
   const client = new Anthropic({ apiKey: options.apiKey, baseURL: options.baseURL });
   const model = CLAUDE_MODELS[options.model ?? "conversation"];
   const stream = client.messages.stream({
     model,
     max_tokens: options.maxTokens ?? 1500,
-    system: options.system,
+    // The system prompt is the shared prefix; prompts under the model's minimum just don't cache.
+    system: [{ type: "text", text: options.system, cache_control: { type: "ephemeral" } }],
     messages: options.messages,
     output_config: { effort: "low" },
+    ...(options.cacheConversation ? { cache_control: { type: "ephemeral" } } : {}),
   });
 
   return {
