@@ -49,6 +49,7 @@ export async function startReview(): Promise<
       try {
         const text = await generateText(selected, {
           model: "conversation",
+          label: "review",
           // The conversation model's thinking counts toward this; parseReviewSentence validates the output.
           maxTokens: 1000,
           system: REVIEW_SENTENCE_PROMPT,

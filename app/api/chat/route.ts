@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       ? getPlacementPrompt(answers)
       : getSystemPrompt(parsed.scenarioId, learner, targets);
 
-  const reply = streamReply(selected, { system, messages });
+  const reply = streamReply(selected, { system, messages, label: parsed.mode });
 
   let started: StartedReply;
   try {

@@ -24,6 +24,7 @@ export async function runSummary(learner: LearnerProfile, sessionId: string): Pr
 
     const text = await generateText(selected, {
       model: "feedback",
+      label: "summary",
       // The feedback model's thinking counts toward this; capSummary bounds the stored note.
       maxTokens: 1000,
       system: SUMMARY_PROMPT,

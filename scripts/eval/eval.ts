@@ -196,6 +196,7 @@ export function claudeGenerate(selected: {
       system,
       messages: [{ role: "user", content: input }],
       model: "feedback",
+      label: "eval",
       // The feedback model's thinking counts toward it, and a 20-sentence batch can return many items.
       maxTokens: 8000,
     });

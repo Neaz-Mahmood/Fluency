@@ -26,10 +26,13 @@ export function streamClaudeReply(options: {
   messages: ChatTurn[];
   model?: keyof typeof CLAUDE_MODELS;
   maxTokens?: number;
+  // Names the call in the usage log line, e.g. "chat" or "feedback".
+  label?: string;
 }): TextReply {
   const client = new Anthropic({ apiKey: options.apiKey, baseURL: options.baseURL });
+  const model = CLAUDE_MODELS[options.model ?? "conversation"];
   const stream = client.messages.stream({
-    model: CLAUDE_MODELS[options.model ?? "conversation"],
+    model,
     max_tokens: options.maxTokens ?? 1500,
     system: options.system,
     messages: options.messages,
@@ -39,11 +42,32 @@ export function streamClaudeReply(options: {
   return {
     abort: () => stream.abort(),
     text: (async function* () {
+      let usage: Anthropic.Usage | null = null;
+      let outputTokens = 0;
+      let stopReason: string | null = null;
       for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        if (event.type === "message_start") {
+          usage = event.message.usage;
+        } else if (event.type === "message_delta") {
+          outputTokens = event.usage.output_tokens;
+          stopReason = event.delta.stop_reason;
+        } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
           yield event.delta.text;
         }
       }
+      // One line per call, so cost per feature can be measured from the logs.
+      console.log(
+        JSON.stringify({
+          event: "claude_usage",
+          label: options.label ?? null,
+          model,
+          input_tokens: usage?.input_tokens ?? null,
+          cache_creation_input_tokens: usage?.cache_creation_input_tokens ?? null,
+          cache_read_input_tokens: usage?.cache_read_input_tokens ?? null,
+          output_tokens: outputTokens,
+          stop_reason: stopReason,
+        }),
+      );
     })(),
   };
 }

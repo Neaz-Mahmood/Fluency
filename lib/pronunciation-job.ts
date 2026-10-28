@@ -61,6 +61,7 @@ export async function runPronunciationFeedback(
         try {
           const text = await generateText(selected, {
             model: "feedback",
+            label: "pronunciation-tips",
             maxTokens: 2000,
             system: buildTipsSystemPrompt(explanationLanguage(learner)),
             messages: [{ role: "user", content: buildTipsInput(summary) }],

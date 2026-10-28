@@ -18,6 +18,7 @@ export type ReplyOptions = {
   messages: ChatTurn[];
   model?: keyof typeof CLAUDE_MODELS;
   maxTokens?: number;
+  label?: string;
 };
 
 export function streamReply(selected: SelectedProvider, options: ReplyOptions): TextReply {
@@ -38,6 +39,7 @@ export function streamReply(selected: SelectedProvider, options: ReplyOptions): 
     messages: options.messages,
     model: options.model,
     maxTokens: options.maxTokens,
+    label: options.label,
   });
 }
 

@@ -73,6 +73,7 @@ export async function runFeedback(
 
     const text = await generateText(selected, {
       model: "feedback",
+      label: `feedback-${mode}`,
       // The feedback model's thinking counts toward this, and a long session can return many items.
       maxTokens: 4000,
       system: buildFeedbackSystemPrompt(explanationLanguage(learner)),

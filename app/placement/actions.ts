@@ -48,6 +48,7 @@ export async function finishPlacement(sessionId: unknown): Promise<PlacementResu
 
     const text = await generateText(selected, {
       model: "feedback",
+      label: "placement-assessment",
       // The feedback model's thinking counts toward this; parseAssessment validates the output.
       maxTokens: 1000,
       system: ASSESSMENT_PROMPT,

@@ -44,6 +44,7 @@ Supported key variables:
 - Request shape: `messages.stream({ model, max_tokens: 1500, system, messages, output_config: { effort: "low" } })`.
 - Streams `content_block_delta` events whose `delta.type === "text_delta"` and yields the text fragments.
 - `abort()` calls `stream.abort()`, which cancels the in-flight HTTP request.
+- Each finished call logs one JSON line, `{"event":"claude_usage", ...}`, with the caller's `label` (`conversation`, `placement`, `feedback-conversation`, `feedback-writing`, `summary`, `pronunciation-tips`, `review`, `placement-assessment` or `eval`), the model, the four token counts and the stop reason. Cost per feature is measured from these lines.
 
 ## OpenCode (`lib/anthropic.ts`)
 
