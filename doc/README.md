@@ -19,6 +19,7 @@ This directory documents the features that are built into Fluency, the spoken-En
 - [Evaluation harness](./evaluation.md) — golden-set scoring and over-correction measurement.
 - [Voice path decision record](./voice-path.md) — Phase 4 voice path, live model, TTS and pronunciation mode (FLU-58).
 - [Live voice worker](./voice-worker.md) — LiveKit Agents worker for live voice practice (FLU-59).
+- [Cost calculator](./cost-calculator.html) — monthly running cost by learners, usage and plans. Open it in a browser.
 - [Out of scope](./out-of-scope.md) — features planned for later phases.
 - [Roadmap](./roadmap.md) — the 12-week plan for Phases 2–5.
 - [Status and next work](./status.md) — current health of the app and the ordered task list.

@@ -315,3 +315,28 @@ To check a deploy end to end, run `pnpm voice:call` with `.env.supabase` (so it 
 ### Web app
 
 The Next.js app isn't deployed yet. When it is, set the same variables as `.env`, with `DATABASE_URL` pointing at the Supabase pooler URL. There is no login until Phase 5, so anyone with the URL can use the AI provider key.
+
+## Costs
+
+[doc/cost-calculator.html](doc/cost-calculator.html) estimates the monthly cost of running Fluency in production. You can change the number of learners, their usage, the plans, the models, and every price and assumption. GitHub shows only the file's source, so open it in a browser:
+
+```bash
+open doc/cost-calculator.html
+```
+
+With its defaults, a typical learner costs about **$5 a month**. The plans add **$95 a month**: Vercel Pro ($20), Supabase Pro ($25) and LiveKit Ship ($50). A typical learner practises on 15 days a month. On each of those days they do a 10-turn typed session, 3 minutes of live voice and 10 flashcards, and they do 2 writing checks a month.
+
+| Learners | LiveKit plan | Total a month | Per learner |
+| -------- | ------------ | ------------- | ----------- |
+| 10       | Ship         | $136          | $13.63      |
+| 100      | Ship         | $552          | $5.52       |
+| 500      | Ship         | $2,571        | $5.14       |
+| 1,000    | Scale        | $4,755        | $4.76       |
+| 5,000    | Scale        | $23,546       | $4.71       |
+
+- **Live voice costs the most.** It's about $0.054 a minute, and half of that is Cartesia's text-to-speech. The 5-minute daily quota holds voice to about $10 per learner a month.
+- **Claude jobs cost the most after voice.** The feedback, tutor note and pronunciation tips after each session run on Claude Opus 5.5 (the `feedback` model in `lib/anthropic.ts`).
+- **Typed chat has no quota,** so the totals hold only while learners stay near the usage above.
+- **LiveKit Scale ($500) is needed** once about 20 voice sessions run at once. The calculator puts that at roughly 1,000 typical learners in one time zone.
+
+Prices were checked on 2026-10-28. Token and character counts are estimated from the prompts, not measured. When a price changes, update its default in `PRICE_FIELDS` in the calculator.
