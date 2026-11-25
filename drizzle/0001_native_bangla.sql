@@ -1,0 +1,1 @@
+ALTER TYPE "public"."lang_code" ADD VALUE 'bn-BD';

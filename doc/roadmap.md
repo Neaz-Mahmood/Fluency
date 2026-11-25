@@ -1,52 +1,57 @@
 # Roadmap
 
-This is the plan for the next 12 weeks of Fluency. It revises the MVP plan in `AI Language Fluency App Research.pdf` to fit the app that already exists and to fix gaps in the original plan.
+This is the plan for the next 12 weeks of Fluency. It revises the MVP plan in the research PDF (kept locally in `research/`, which is gitignored) to fit the app that already exists and to fix gaps in the original plan.
 
 ## What it is
 
-A four-phase plan that takes Fluency from a stateless web app for practicing English to an MVP with accounts, post-session feedback, flashcards, a low-latency voice tutor with pronunciation scoring, and role-plays. Phases 0 and 1 are already built (see [features.md](./features.md)), so this plan starts at Phase 2.
+A four-phase plan that takes Fluency from a stateless web app for practicing English to an MVP with a saved learner model, post-session feedback, flashcards, a low-latency voice tutor with pronunciation scoring, and role-plays. Phases 0 and 1 are already built (see [features.md](./features.md)), so this plan starts at Phase 2.
+
+The MVP includes login (email and password, plus Google), but login is built **last**, at the end of Phase 5. Until then, the app runs with anonymous learners so the rest of the system can be built and tested without signing in.
 
 ## Ground rules
 
 These decisions apply to every phase. They are the main ways this plan differs from the research plan.
 
 - **Web first, in the existing Next.js app.** No Expo rewrite during the MVP. Browsers already do echo cancellation (`getUserMedia({ echoCancellation: true })`), and LiveKit has a browser SDK. Mobile comes after the MVP.
-- **One learning direction: Spanish speakers learning English (es → en).** This matches the current English-only app and halves the golden sets, the pronunciation rules and the content work. English speakers learning Spanish (en → es) comes after the MVP.
+- **One learning direction: Bangla speakers learning English (bn → en) first, because the team can review Bangla; Spanish speakers (es → en) next, added as a new native language (enum value, `lib/languages.ts` entry, dictionary, golden set).** This matches the current English-only app and halves the golden sets, the pronunciation rules and the content work. English speakers learning Spanish (en → es) comes after the MVP.
 - **The live turn only talks; feedback happens after the session.** The fast model in the voice loop writes the reply and nothing else. Grammar correction runs on the saved transcript with the feedback model (`CLAUDE_MODELS.feedback` in `lib/anthropic.ts`). This keeps latency low and puts correction on a model strong enough to do it with high precision.
 - **Correct only real errors (precision first).** Never set a target error count in a prompt. At least 40% of few-shot examples are error-free and map to `edits: []`. Every correction has two tracks: `minimal_correction` (only real errors) and `fluency_upgrade` (optional, labeled as style).
 - **Measure from week 1.** The evaluation harness and latency tracking ship in Phase 2, not later. Each phase gate below assumes they exist.
-- **Costs and compliance ship with the feature that creates them.** The voice quota ships with voice. Consent ships before audio is stored. Account deletion ships with the schema.
+- **Login comes last; anonymous learners until then.** On first visit the server sets a random `learner_id` in an httpOnly cookie, and every table keys on it. When login lands in Phase 5, signing up links that `learner_id` to the new account. The schema doesn't change, and testers keep their history. Until then, a learner's data lives in one browser, and clearing cookies starts a new learner.
+- **All data access goes through one helper.** Every route gets the current learner from `lib/learner.ts`, never from the request body. In Phase 5 only that helper changes, from "read the cookie" to "read the session", so login doesn't touch every route.
+- **Costs and compliance ship with the feature that creates them.** The voice quota ships with voice. Consent ships before audio is stored. "Delete my data" ships with the schema.
 - **Test vendors before relying on their numbers.** The text-to-speech ranking in the research comes from one vendor's own site, and the over-correction numbers come from Finnish and Ukrainian correction papers. Phase 4 starts by testing both on our own data.
 
-## Phase 2 — Weeks 1–3: Accounts, learner model, measurement
+## Phase 2 — Weeks 1–3: Learner model and measurement
 
-Fluency remembers who you are and what you said.
+Fluency remembers you and what you said.
 
 ### Engineering
 
-- Accounts with sign-up and sign-in. Every later feature needs a user.
-- Managed Postgres with the four tables from the research (`learner_profiles`, `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`), plus:
-  - a `user_id` link from `learner_profiles` to the auth user;
+- Anonymous learner ID: created on first visit, stored in an httpOnly, `SameSite=Lax` cookie, and read on the server for every request.
+- Postgres with the four tables from the research (`learner_profiles`, `learner_error_patterns`, `fsrs_cards`, `fsrs_review_logs`), plus:
+  - a nullable `user_id` on `learner_profiles`, empty until login lands in Phase 5;
   - `sessions` and `session_turns` tables for saved transcripts;
   - a `voice_usage` table keyed by `(learner_id, day)`. This replaces `daily_free_voice_seconds_used`, which has no reset date.
-- Delete account: one action that cascades through every learner table. The schema's `ON DELETE CASCADE` makes this cheap now and expensive to add later.
+- "Delete my data": one action that removes the learner and cascades through every learner table, then clears the cookie. The schema's `ON DELETE CASCADE` makes this cheap now and expensive to add later.
+- Optional access gate for testing: if `ACCESS_CODE` is set, `proxy.ts` asks for it before serving `/practice` or `/api/chat`. This isn't login. It only stops strangers from spending the API key if the app is deployed before Phase 5. Login replaces it.
 - Background jobs (saving turns, building summaries) run in `after()` from `next/server`. A separate long-running worker is only needed in Phase 4, for the voice agent.
 - Latency tracking on the existing `/api/chat` path: time to first token and time to first audio, logged per turn.
 - Evaluation harness skeleton: a script that runs prompts against a golden set and reports scores. It must exist before any correction prompt does.
 
 ### Learning and AI
 
-- Language settings: native language `es` and target language `en-US`. Only the A1–A2 explanations use the native language.
-- Spanish UI strings for the basic screens, so A1 learners can find their way around.
+- Language settings: native language `bn-BD` and target language `en-US`. Only the A1–A2 explanations use the native language.
+- Bangla UI strings for the basic screens, so A1 learners can find their way around.
 - Placement chat (6 turns or fewer) that sets a **provisional** speaking and writing CEFR level. Reading and listening start at the speaking level and are refined from real sessions. A chat can't measure them directly.
 - Compact learner summary (under 250 tokens) built by the worker after each session and added to the system prompt from `lib/prompts.ts`.
 
 ### Exit gate
 
-- Transcripts persist across reloads and devices.
+- Transcripts persist across reloads in the same browser.
 - Placement finishes in 6 turns or fewer and writes a CEFR level.
 - The learner summary stays under 250 tokens on 20 test profiles.
-- Delete account removes every row for that learner (checked by a test).
+- "Delete my data" removes every row for that learner (checked by a test).
 
 ## Phase 3 — Weeks 4–6: Post-session feedback, flashcards, writing
 
@@ -82,10 +87,11 @@ Talk to Fluency with replies under a second, and get pronunciation feedback afte
 
 ### Week 7 first: tests before building
 
-- **Text-to-speech A/B test** on our own English sentences and mixed English–Spanish sentences: Cartesia Sonic-3, Gradium, Deepgram Aura-2. Measure perceived time to first audio, including leading silence, plus pronunciation quality and cost.
+- **Text-to-speech A/B test** on our own English sentences and mixed English–Spanish sentences: Cartesia Sonic-3, Gradium, Deepgram Aura-2 (through LiveKit Inference). Measure perceived time to first audio, including leading silence, plus pronunciation quality and cost.
 - **Live model time to first token**: compare `claude-haiku-5-5` with the current Gemini Flash model. Check current prices; don't reuse the research figures.
 - **Azure pronunciation assessment language check**: confirm which features (prosody, content scoring) work for `en-US` unscripted speech. The MVP only needs `en-US`, but write the result down for en → es later.
-- **Choose the voice path.** If building solo: LiveKit Cloud with the Deepgram Voice Agent API. If two or more engineers: our own agent in the worker (Deepgram Flux speech-to-text → fast model → the text-to-speech vendor chosen above).
+- **Choose the voice path.** Our own agent in a LiveKit Agents worker: Deepgram Flux speech-to-text through LiveKit Inference → fast model → the text-to-speech vendor chosen above. LiveKit Inference runs the Deepgram models with the LiveKit key, so there's no Deepgram account; the Deepgram Voice Agent API is out because it needs one. Speech-to-text fallbacks: AssemblyAI Universal-Streaming or Cartesia Ink.
+- **The live model must fit the latency budget.** Claude runs through OpenCode (there's no direct Anthropic key), and the proxy hop alone puts Haiku's time to first token over 750 ms. Compare Gemini Flash and LiveKit Inference models as well.
 
 ### Engineering
 
@@ -93,8 +99,8 @@ Talk to Fluency with replies under a second, and get pronunciation feedback afte
 - The voice agent runs in the worker, not in a Next.js route. WebRTC sessions are long-lived.
 - The voice is chosen **in code from the CEFR level**, not from a field in the model's output. The model's text has to reach text-to-speech before a trailing JSON field could be read.
 - Copy each learner turn's audio to an Azure pronunciation job (16 kHz, 16-bit mono PCM, `Granularity.Phoneme`, prosody on). Gather at least 20 s / 50 words / 3 sentences before scoring. The live turn never waits on Azure.
-- **Voice quota ships here**: a per-day counter in `voice_usage`, checked when a session starts and on every turn. Add Redis only if Postgres can't keep up.
-- **Audio consent ships here**: explicit opt-in before any raw audio is stored. Audio is never sent to voice-cloning endpoints. Deleting an account also deletes stored audio.
+- **Voice quota ships here**: a per-day counter in `voice_usage`, checked when a session starts and on every turn. Add Redis only if Postgres can't keep up. Until login lands, clearing cookies resets the quota. That's acceptable for testing; Phase 5 moves the quota to the account.
+- **Audio consent ships here**: explicit opt-in before any raw audio is stored. Audio is never sent to voice-cloning endpoints. "Delete my data" also deletes stored audio.
 
 ### Learning and AI
 
@@ -104,19 +110,35 @@ Talk to Fluency with replies under a second, and get pronunciation feedback afte
 
 ### Exit gate
 
-- Time from the end of the learner's speech to the first reply audio: **p50 < 750 ms, p90 < 950 ms**, measured in the browser over a real network.
+- Time from the end of the learner's speech to the first reply audio: **p50 < 1.6 s, p90 < 2.2 s**, measured in the browser over a real network (`pnpm voice:bench`). This was p50 < 750 ms and p90 < 950 ms until 2026-10-27. FLU-72 to FLU-75 showed the cascaded pipeline's floor from Dhaka is about 800 ms; see `doc/voice-path.md`, Decision 2.
 - Zero voice turns blocked on pronunciation scoring.
 - Quota and consent checked by tests.
 
-## Phase 5 — Weeks 10–12: Role-plays, Gentle Mode, launch
+## Phase 5 — Weeks 10–12: Role-plays, Gentle Mode, login
 
-Fluency becomes a product you can open every day.
+Fluency becomes something you can open every day, from any device.
 
 ### Engineering
 
 - Role-play state machine with goals (`criteria_met_count` / `criteria_total_count`), built on top of `lib/scenarios.ts`.
-- Free tier and paid tier gating on top of the Phase 4 quota.
 - Progress view: CEFR level over time and resolved error streaks.
+- Level re-estimation: placement sets a provisional level once, so every 5 finished sessions the feedback model re-estimates speaking and writing from those sessions, at most one step at a time, and keeps a level history. Without it, the level over time is a flat line.
+
+### Login (last, about week 12)
+
+Built after everything else works, so the rest of the system is tested first.
+
+- **Email and password sign-up and sign-in.** Hash passwords with a slow, salted algorithm (the auth library's default, such as scrypt or Argon2). Never store plain passwords.
+- **Email verification and password reset.** Both need a transactional email service. Choose it before this week.
+- **Google sign-in** (OAuth). Needs a Google Cloud OAuth client, a consent screen, and redirect URLs for local and deployed environments.
+- **One account per email.** If someone signs up with a password and later uses Google with the same verified email, link both to the same account rather than creating a second one.
+- **Link anonymous history.** On first sign-up from a browser that already has a `learner_id`, set `user_id` on that learner so testers keep their sessions and flashcards. On sign-in from a new browser, switch to the account's learner.
+- **Protect routes.** `proxy.ts` redirects signed-out users away from `/practice` and data routes, and returns 401 from `/api/chat`. Each route still checks on the server that the data belongs to the signed-in learner. `proxy.ts` alone isn't authorization.
+- **Swap the helper.** `lib/learner.ts` reads the session instead of the anonymous cookie.
+- **Sign-up is limited to an allowlist of tester emails** until the free and paid tiers exist, for password and Google sign-up alike. Text chat has no quota, so open sign-up would let anyone spend the model budget. This replaces the `ACCESS_CODE` gate, which was never built.
+- **Move the voice quota to the account,** so clearing cookies no longer resets it. One live voice session at a time per account.
+- **Deploy the web app** on Vercel, with functions in Mumbai next to the database and the voice worker.
+- **"Delete my data" becomes "Delete account"**: it removes the user, the learner and all of their data.
 
 ### Learning and AI
 
@@ -127,11 +149,20 @@ Fluency becomes a product you can open every day.
 
 ### Exit gate
 
-- The free-tier cap holds under a load test.
-- Account deletion and audio deletion verified end to end.
-- Cost per 10-minute voice session measured in production and compared with the research's estimate of $0.14–$0.27.
+- Sign-up, sign-in, email verification, password reset and Google sign-in all work, and a tester's anonymous history carries over on first sign-up.
+- A signed-out request to `/api/chat` gets a 401, and one learner can't read another learner's data (checked by tests).
+- The daily voice cap holds per account under a load test.
+- "Delete account", including audio, verified end to end.
+- Cost per 10-minute voice session measured with testers and compared with the research's estimate of $0.14–$0.27.
 
 ## After the MVP
+
+### Before public launch
+
+- **Free and paid tiers** on top of the per-account voice quota.
+- **Privacy policy and consent text** reviewed for public users.
+
+### Later
 
 - en → es direction: Spanish golden set, en → es pronunciation patterns (tap /ɾ/ vs. trill /r/, dropped final /r/, aspirated stops, missing [β ð ɣ], /ɲ/ split into /n+j/, diphthongs split into two syllables), and the bilingual code-switching voice.
 - Expo mobile app.
@@ -146,9 +177,13 @@ These are choices the plan doesn't make. Each one needs an owner before the phas
 | Decision | Default in this plan | Needed by |
 | --- | --- | --- |
 | Free-tier size. The research says both "three 5-minute sessions" (15 min) and "5 minutes/day". | 5 minutes/day, as three short sessions of 4 turns | Phase 4 |
-| Auth provider and Postgres host | Any managed option that works with Next.js | Phase 2, week 1 |
-| Team size, which sets the voice path | Solo path (LiveKit Cloud + Deepgram Voice Agent) | Phase 4, week 7 |
-| Text-to-speech vendor | Decided by the week 7 A/B test | Phase 4, week 7 |
+| Postgres host and database library (ORM or migration tool) | Decided: Postgres + Drizzle. Managed host is Supabase in Mumbai (ap-south-1), reached through the Session pooler (FLU-67, 2026-10-27) | Phase 2, week 1 |
+| Auth library (must support email/password, Google and the chosen database) | Decided 2026-10-27: Better Auth, with its tables in our Postgres through the Drizzle adapter | Phase 5, week 12 |
+| Transactional email service (verification and password reset) | Decided 2026-10-27: Resend, sending from a verified domain | Phase 5, week 12 |
+| Web app host | Decided 2026-10-27: Vercel, functions in Mumbai (`bom1`) | Phase 5, week 12 |
+| Who can sign up while testing | Decided 2026-10-27: an allowlist of tester emails | Phase 5, week 12 |
+| Voice path | Decided 2026-10-26 ([voice-path.md](./voice-path.md)): LiveKit Agents worker on LiveKit Cloud, Deepgram Flux and Gemma 4 31B through LiveKit Inference | Phase 4, week 7 |
+| Text-to-speech vendor | Decided 2026-10-26 ([voice-path.md](./voice-path.md)): Cartesia Sonic-3 through LiveKit Inference, because it can speak the Bangla help | Phase 4, week 7 |
 
 ## Notes
 

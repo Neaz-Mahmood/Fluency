@@ -1,0 +1,1 @@
+ALTER TABLE "session_turns" ADD COLUMN "speech_end_to_audio_ms" integer;

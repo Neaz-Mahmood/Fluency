@@ -1,0 +1,1 @@
+ALTER TABLE "learner_profiles" ADD COLUMN "voice_consent_at" timestamp with time zone;

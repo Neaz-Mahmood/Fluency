@@ -1,0 +1,10 @@
+# The image copies only package files, worker/ and lib/ (see Dockerfile).
+# This keeps secrets and large local folders out of the build context sent to LiveKit Cloud.
+.env*
+.git
+.next
+.pnpm-store
+node_modules
+out
+research
+**/*.test.ts

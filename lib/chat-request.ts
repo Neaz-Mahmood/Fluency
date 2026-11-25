@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/learner-id";
 import { isScenarioId, type ScenarioId } from "@/lib/scenarios";
 
 export type ChatTurn = {
@@ -5,58 +6,93 @@ export type ChatTurn = {
   content: string;
 };
 
-const MAX_TURNS = 40;
-const MAX_CHARS = 2000;
+export type InputMode = "voice" | "typed";
 
-export function parseChatRequest(
-  body: unknown,
-): { scenarioId: ScenarioId; messages: ChatTurn[] } | { error: string } {
+type ChatRequestBase = {
+  message: string;
+  // The session from a previous reply's X-Session-Id header. Absent on the first turn.
+  sessionId?: string;
+  // How the learner produced the message.
+  inputMode?: InputMode;
+};
+
+// One new learner turn. The history comes from the saved session, never from the client.
+export type ChatRequest =
+  | (ChatRequestBase & { mode: "conversation"; scenarioId: ScenarioId })
+  | (ChatRequestBase & { mode: "placement" });
+
+const MAX_TURNS = 40;
+export const MAX_CHARS = 2000;
+
+export function parseChatRequest(body: unknown): ChatRequest | { error: string } {
   if (!body || typeof body !== "object") {
     return { error: "Request body must be an object." };
   }
 
   const record = body as Record<string, unknown>;
-  if (typeof record.scenarioId !== "string" || !isScenarioId(record.scenarioId)) {
+  if (record.mode === "placement") {
+    if (record.scenarioId !== undefined) {
+      return { error: "Placement does not take a scenario." };
+    }
+  } else if (record.mode !== undefined && record.mode !== "conversation") {
+    return { error: "Mode must be conversation or placement." };
+  } else if (typeof record.scenarioId !== "string" || !isScenarioId(record.scenarioId)) {
     return { error: "Choose a scenario before sending a message." };
   }
 
-  if (!Array.isArray(record.messages) || record.messages.length === 0) {
-    return { error: "Send at least one message." };
+  const { sessionId, inputMode } = record;
+  if (sessionId !== undefined && !isUuid(sessionId)) {
+    return { error: "The session id is not valid. Start a new conversation." };
+  }
+  if (inputMode !== undefined && inputMode !== "voice" && inputMode !== "typed") {
+    return { error: "Input mode must be voice or typed." };
   }
 
-  if (record.messages.length > MAX_TURNS) {
+  if (typeof record.message !== "string") {
+    return { error: "Message must be text." };
+  }
+  const message = record.message.trim();
+  if (!message) {
+    return { error: "Message cannot be empty." };
+  }
+  if (message.length > MAX_CHARS) {
+    return { error: "A message is too long." };
+  }
+
+  if (record.mode === "placement") {
+    return {
+      mode: "placement",
+      message,
+      ...(sessionId !== undefined ? { sessionId } : {}),
+      ...(inputMode !== undefined ? { inputMode: inputMode as InputMode } : {}),
+    };
+  }
+
+  return {
+    mode: "conversation",
+    scenarioId: record.scenarioId as ScenarioId,
+    message,
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    ...(inputMode !== undefined ? { inputMode: inputMode as InputMode } : {}),
+  };
+}
+
+// The conversation to send to the provider: the saved turns plus the new message.
+// Saved turns can repeat a role (a reply that failed before any text saves only the
+// learner's turn), so consecutive turns from the same speaker are joined.
+export function buildHistory(
+  saved: readonly ChatTurn[],
+  message: string,
+): ChatTurn[] | { error: string } {
+  const history: ChatTurn[] = [];
+  for (const turn of [...saved, { role: "user" as const, content: message }]) {
+    const previous = history[history.length - 1];
+    if (previous?.role === turn.role) previous.content += `\n\n${turn.content}`;
+    else history.push({ role: turn.role, content: turn.content });
+  }
+
+  if (history.length > MAX_TURNS) {
     return { error: "This conversation is too long. Start a new one." };
   }
-
-  const messages: ChatTurn[] = [];
-  for (const entry of record.messages) {
-    if (!entry || typeof entry !== "object") {
-      return { error: "Each message must include a role and content." };
-    }
-    const turn = entry as Record<string, unknown>;
-    if (turn.role !== "user" && turn.role !== "assistant") {
-      return { error: "Message roles must be user or assistant." };
-    }
-    if (typeof turn.content !== "string") {
-      return { error: "Message content must be text." };
-    }
-    const content = turn.content.trim();
-    if (!content) {
-      return { error: "Message content cannot be empty." };
-    }
-    if (content.length > MAX_CHARS) {
-      return { error: "A message is too long." };
-    }
-    const previous = messages[messages.length - 1];
-    if (previous && previous.role === turn.role) {
-      return { error: "Messages must alternate between you and the partner." };
-    }
-    messages.push({ role: turn.role, content });
-  }
-
-  if (messages[0]?.role !== "user" || messages[messages.length - 1]?.role !== "user") {
-    return { error: "The latest message must be from you." };
-  }
-
-  return { scenarioId: record.scenarioId, messages };
+  return history;
 }

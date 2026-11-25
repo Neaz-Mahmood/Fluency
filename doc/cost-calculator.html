@@ -1,0 +1,1123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fluency cost calculator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Manrope:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Oceanic Precision tokens (DESIGN.md, app/globals.css). */
+      :root {
+        --imperial: #03256c;
+        --ocean: #1768ac;
+        --surge: #06bee1;
+        --persian: #2541b2;
+        --subtle: #f4f7fb;
+        --border: #d8e2ed;
+        --muted: #556b82;
+        --text: #1a1c1c;
+        --canvas: #f9f9f9;
+        --card: #ffffff;
+        --error: #ba1a1a;
+        --error-container: #ffdad6;
+        --warn-container: #fff4d6;
+        --warn-text: #6b4e00;
+        --heading: "Manrope", system-ui, sans-serif;
+        --body: "Inter", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--text);
+        font: 400 14px/22px var(--body);
+      }
+      header,
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      header {
+        padding-top: 32px;
+        padding-bottom: 8px;
+      }
+      h1 {
+        font: 700 32px/40px var(--heading);
+        letter-spacing: -0.01em;
+        color: var(--imperial);
+        margin: 0 0 8px;
+      }
+      h2 {
+        font: 600 20px/28px var(--heading);
+        color: var(--imperial);
+        margin: 0 0 12px;
+      }
+      header p {
+        margin: 0;
+        max-width: 72ch;
+        color: var(--muted);
+      }
+      main {
+        display: grid;
+        gap: 24px;
+        padding-top: 24px;
+        padding-bottom: 48px;
+      }
+      @media (min-width: 960px) {
+        main {
+          grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+          align-items: start;
+        }
+        .results {
+          position: sticky;
+          top: 16px;
+        }
+      }
+      .stack {
+        display: grid;
+        gap: 16px;
+        min-width: 0;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px -2px rgba(3, 37, 108, 0.05);
+        padding: 20px;
+        min-width: 0;
+      }
+      details.card > summary {
+        cursor: pointer;
+        font: 600 16px/24px var(--heading);
+        color: var(--imperial);
+        list-style-position: inside;
+      }
+      details.card[open] > summary {
+        margin-bottom: 12px;
+      }
+      .fields {
+        display: grid;
+        gap: 12px;
+      }
+      @media (min-width: 480px) {
+        .fields.two {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      label {
+        display: grid;
+        gap: 4px;
+        font-weight: 600;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--text);
+      }
+      label small {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      input,
+      select {
+        font: 400 14px/20px var(--body);
+        color: var(--imperial);
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 8px 12px;
+        width: 100%;
+        min-width: 0;
+      }
+      input:focus-visible,
+      select:focus-visible,
+      button:focus-visible,
+      summary:focus-visible {
+        outline: none;
+        border-color: var(--ocean);
+        box-shadow: 0 0 0 3px rgba(6, 190, 225, 0.3);
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 4px 0 16px;
+      }
+      .chip {
+        font: 600 12px/16px var(--body);
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--muted);
+        border-radius: 9999px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      .chip:hover {
+        border-color: var(--ocean);
+      }
+      .chip[aria-pressed="true"] {
+        background: var(--imperial);
+        border-color: var(--imperial);
+        color: #fff;
+      }
+      .section-label {
+        font: 600 11px/14px var(--body);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 6px;
+      }
+      .total {
+        display: grid;
+        gap: 16px;
+      }
+      @media (min-width: 560px) {
+        .total {
+          grid-template-columns: 1.4fr 1fr 1fr;
+        }
+      }
+      .figure {
+        font: 700 36px/44px var(--heading);
+        letter-spacing: -0.015em;
+        color: var(--imperial);
+        font-variant-numeric: tabular-nums;
+      }
+      .figure.small {
+        font-size: 24px;
+        line-height: 32px;
+      }
+      .figure-note {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 18px;
+      }
+      .breakdown {
+        display: grid;
+        gap: 4px;
+      }
+      .group-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-weight: 600;
+        color: var(--imperial);
+        border-bottom: 2px solid var(--imperial);
+        padding: 12px 0 4px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        column-gap: 12px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .row .amount {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      .row.zero {
+        color: var(--muted);
+      }
+      .bar {
+        grid-column: 1 / -1;
+        height: 4px;
+        border-radius: 9999px;
+        background: var(--subtle);
+        margin-top: 4px;
+        overflow: hidden;
+      }
+      .bar span {
+        display: block;
+        height: 100%;
+        background: var(--ocean);
+        border-radius: 9999px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+      }
+      th {
+        text-align: left;
+        font: 600 11px/14px var(--body);
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border-bottom: 2px solid var(--imperial);
+        padding: 8px 8px 6px 0;
+      }
+      td {
+        padding: 8px 8px 8px 0;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      tbody tr:nth-child(even) td {
+        background: var(--subtle);
+      }
+      td.num,
+      th.num {
+        text-align: right;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      .notes {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .notes li {
+        border-radius: 4px;
+        padding: 8px 12px;
+        background: var(--subtle);
+        border: 1px solid var(--border);
+      }
+      .notes li.warn {
+        background: var(--warn-container);
+        border-color: #f0d68a;
+        color: var(--warn-text);
+      }
+      .notes li.error {
+        background: var(--error-container);
+        border-color: #f3b3ad;
+        color: #93000a;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      button.reset {
+        font: 600 12px/16px var(--body);
+        color: var(--imperial);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      button.reset:hover {
+        background: var(--subtle);
+        border-color: var(--ocean);
+      }
+      footer {
+        font-size: 12px;
+        line-height: 18px;
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--ocean);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Fluency cost calculator</h1>
+      <p>
+        Estimates what running Fluency in production costs each month. Prices were checked on
+        2026-10-28. Token and character counts are estimated from the app's prompts, not measured
+        from real sessions, so treat the totals as a guide. Every price and assumption can be
+        changed below.
+      </p>
+    </header>
+
+    <main>
+      <div class="stack">
+        <section class="card" aria-labelledby="learners-heading">
+          <h2 id="learners-heading">Learners</h2>
+          <div class="fields">
+            <label>
+              Active learners in the month
+              <input id="learners" type="number" min="1" max="100000" step="1" />
+            </label>
+          </div>
+          <div class="chips" id="learner-chips"></div>
+
+          <p class="section-label">Usage per learner</p>
+          <div class="chips" id="preset-chips"></div>
+          <div class="fields two" id="usage-fields"></div>
+        </section>
+
+        <section class="card" aria-labelledby="plans-heading">
+          <h2 id="plans-heading">Plans and models</h2>
+          <div class="fields">
+            <label>
+              LiveKit Cloud (voice worker, WebRTC, inference)
+              <select id="plan-livekit">
+                <option value="auto">Cheapest plan that fits</option>
+                <option value="build">Build, free</option>
+                <option value="ship">Ship, $50 a month</option>
+                <option value="scale">Scale, $500 a month</option>
+              </select>
+            </label>
+            <label>
+              Vercel (web app)
+              <select id="plan-vercel">
+                <option value="pro">Pro, $20 a month</option>
+                <option value="hobby">Hobby, free (non-commercial only)</option>
+              </select>
+            </label>
+            <label>
+              Supabase (Postgres)
+              <select id="plan-supabase">
+                <option value="pro">Pro, $25 a month with Micro compute</option>
+                <option value="free">Free</option>
+              </select>
+            </label>
+            <label>
+              Azure Speech (pronunciation scoring)
+              <select id="plan-azure">
+                <option value="s0">S0, pay per audio hour</option>
+                <option value="f0">F0, free</option>
+              </select>
+            </label>
+            <label>
+              Model for feedback, tutor note, pronunciation tips, writing and placement
+              <small>The <code>feedback</code> model in <code>lib/anthropic.ts</code>.</small>
+              <select id="model-recap">
+                <option value="opus">Claude Opus 5.5 (current)</option>
+                <option value="sonnet">Claude Sonnet 5.5</option>
+              </select>
+            </label>
+            <label>
+              Text-to-speech route
+              <select id="model-tts">
+                <option value="livekit">
+                  Cartesia Sonic-3 through LiveKit Inference (current)
+                </option>
+                <option value="direct">Cartesia Sonic-3 direct, with our own key</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <details class="card">
+          <summary>Prices</summary>
+          <div class="fields two" id="price-fields"></div>
+        </details>
+
+        <details class="card">
+          <summary>Token and speech assumptions</summary>
+          <div class="fields two" id="assume-fields"></div>
+        </details>
+
+        <div><button class="reset" id="reset" type="button">Reset everything</button></div>
+      </div>
+
+      <div class="stack results">
+        <section class="card total" aria-live="polite">
+          <div>
+            <p class="section-label">Total per month</p>
+            <div class="figure" id="out-total"></div>
+            <div class="figure-note" id="out-plan"></div>
+          </div>
+          <div>
+            <p class="section-label">Per learner</p>
+            <div class="figure small" id="out-per-learner"></div>
+            <div class="figure-note">a month</div>
+          </div>
+          <div>
+            <p class="section-label">Usage / fixed</p>
+            <div class="figure small" id="out-split"></div>
+            <div class="figure-note" id="out-minutes"></div>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="breakdown-heading">
+          <h2 id="breakdown-heading">Where the money goes</h2>
+          <div class="breakdown" id="out-breakdown"></div>
+        </section>
+
+        <section class="card" aria-labelledby="notes-heading">
+          <h2 id="notes-heading">Check before launch</h2>
+          <ul class="notes" id="out-notes"></ul>
+        </section>
+
+        <section class="card" aria-labelledby="unit-heading">
+          <h2 id="unit-heading">Cost per action</h2>
+          <p class="muted" style="margin-top: 0">
+            What one more of each costs, before plan allowances.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th class="num">Cost</th>
+                </tr>
+              </thead>
+              <tbody id="out-units"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="sizes-heading">
+          <h2 id="sizes-heading">At other sizes</h2>
+          <p class="muted" style="margin-top: 0">
+            The same usage per learner, with the cheapest LiveKit plan that fits.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="num">Learners</th>
+                  <th>LiveKit plan</th>
+                  <th class="num">Total / month</th>
+                  <th class="num">Per learner</th>
+                </tr>
+              </thead>
+              <tbody id="out-sizes"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <footer>
+          Prices from
+          <a href="https://livekit.com/pricing">LiveKit</a>,
+          <a href="https://livekit.com/pricing/inference">LiveKit Inference</a>,
+          <a href="https://opencode.ai/docs/zen/">OpenCode Zen</a>,
+          <a href="https://vercel.com/pricing">Vercel</a>,
+          <a href="https://supabase.com/pricing">Supabase</a> and the Azure Retail Prices API
+          (<code>southeastasia</code>). Token counts come from the prompts in <code>lib/</code>;
+          voice turn rates from the FLU-63 bench (<code>doc/voice-worker.md</code>).
+        </footer>
+      </div>
+    </main>
+
+    <script>
+      const PRESETS = {
+        light: { days: 8, typedSessions: 1, typedTurns: 10, voiceMin: 0, cards: 5, writes: 0 },
+        typical: { days: 15, typedSessions: 1, typedTurns: 10, voiceMin: 3, cards: 10, writes: 2 },
+        heavy: { days: 25, typedSessions: 2, typedTurns: 10, voiceMin: 5, cards: 20, writes: 8 },
+      };
+
+      // [key, label, hint, default, step, min, max]
+      const USAGE_FIELDS = [
+        ["days", "Practice days a month", "", 15, 1, 0, 31],
+        ["typedSessions", "Typed sessions a day", "", 1, 1, 0, 20],
+        [
+          "typedTurns",
+          "Learner turns per typed session",
+          "/api/chat keeps 40 turns, so 20 at most.",
+          10,
+          1,
+          1,
+          20,
+        ],
+        [
+          "voiceMin",
+          "Live voice minutes a day",
+          "The quota is 5 (lib/voice-quota.ts).",
+          3,
+          0.5,
+          0,
+          5,
+        ],
+        ["cards", "Flashcards reviewed a day", "", 10, 1, 0, 200],
+        ["writes", "Writing checks a month", "", 2, 1, 0, 100],
+      ];
+
+      const PRICE_FIELDS = [
+        ["sonnetIn", "Claude Sonnet 5.5 input", "$ per 1M tokens", 2, 0.01],
+        ["sonnetOut", "Claude Sonnet 5.5 output", "$ per 1M tokens", 10, 0.01],
+        ["opusIn", "Claude Opus 5.5 input", "$ per 1M tokens", 4, 0.01],
+        ["opusOut", "Claude Opus 5.5 output", "$ per 1M tokens", 20, 0.01],
+        ["opencodePct", "OpenCode fee on each top-up", "%", 4.6, 0.1],
+        ["opencodeFixed", "OpenCode fee per top-up", "$", 0.31, 0.01],
+        ["topUp", "OpenCode top-up size", "$", 50, 1],
+        ["gemmaIn", "Gemma 4 31B input", "$ per 1M tokens", 0.4, 0.01],
+        ["gemmaCached", "Gemma 4 31B cached input", "$ per 1M tokens", 0.2, 0.01],
+        ["gemmaOut", "Gemma 4 31B output", "$ per 1M tokens", 1.2, 0.01],
+        ["fluxShip", "Deepgram Flux, Build and Ship", "$ per minute", 0.0065, 0.0001],
+        ["fluxScale", "Deepgram Flux, Scale", "$ per minute", 0.0057, 0.0001],
+        [
+          "sonicShip",
+          "Cartesia Sonic-3 via LiveKit, Build and Ship",
+          "$ per 1M characters",
+          50,
+          0.1,
+        ],
+        ["sonicScale", "Cartesia Sonic-3 via LiveKit, Scale", "$ per 1M characters", 37.5, 0.1],
+        ["sonicDirect", "Cartesia Sonic-3 direct", "$ per 1M characters (FLU-56)", 39.2, 0.1],
+        ["agentMin", "LiveKit agent minute over the allowance", "$ per minute", 0.01, 0.001],
+        [
+          "rtcShip",
+          "LiveKit WebRTC minute over the allowance, Ship",
+          "$ per participant minute",
+          0.0005,
+          0.0001,
+        ],
+        [
+          "rtcScale",
+          "LiveKit WebRTC minute over the allowance, Scale",
+          "$ per participant minute",
+          0.0004,
+          0.0001,
+        ],
+        [
+          "azureHour",
+          "Azure S0 speech-to-text plus pronunciation add-on",
+          "$ per audio hour ($1.00 + $0.30)",
+          1.3,
+          0.01,
+        ],
+        ["livekitShip", "LiveKit Ship plan", "$ a month", 50, 1],
+        ["livekitScale", "LiveKit Scale plan", "$ a month", 500, 1],
+        ["vercelPro", "Vercel Pro plan", "$ a month, includes $20 of usage", 20, 1],
+        ["supabasePro", "Supabase Pro plan", "$ a month, includes Micro compute", 25, 1],
+      ];
+
+      const ASSUME_FIELDS = [
+        [
+          "sysTokens",
+          "Tutor system prompt",
+          "tokens; about 2,400 characters for an A2 Bangla learner with a tutor note",
+          600,
+          10,
+        ],
+        ["exchTokens", "One exchange (learner line + reply)", "tokens", 85, 5],
+        ["chatOut", "Sonnet output per typed reply", "tokens, with low-effort thinking", 160, 10],
+        ["feedbackOut", "Feedback output, base", "tokens, with thinking", 1000, 50],
+        ["feedbackOutPerTurn", "Feedback output per learner turn", "tokens", 30, 5],
+        ["summaryOut", "Tutor note output", "tokens, with thinking", 350, 10],
+        ["tipsOut", "Pronunciation tips output", "tokens, with thinking", 700, 10],
+        ["voiceTurnsPerMin", "Voice turns per minute", "the bench: 9 turns in 172 s", 3, 0.1],
+        [
+          "preemptivePct",
+          "Extra Gemma calls from preemptive generation",
+          "%; Deepgram says 50–70%",
+          60,
+          5,
+        ],
+        [
+          "gemmaCachePct",
+          "Gemma input served from cache",
+          "%; the worker warms the cache (FLU-75)",
+          80,
+          5,
+        ],
+        ["replyChars", "Characters per spoken reply", "replies are at most 45 words", 150, 10],
+        ["ttsWastePct", "Speech made for dropped drafts", "%; preemptive TTS (FLU-73)", 25, 5],
+        ["learnerSecPerTurn", "Learner speech scored per turn", "seconds sent to Azure", 6, 0.5],
+        [
+          "peakSharePct",
+          "Day's voice minutes in the busiest hour",
+          "%; one time zone, evening peak",
+          30,
+          5,
+        ],
+        ["bytesPerTurn", "Database bytes per saved turn", "row plus indexes", 1000, 100],
+      ];
+
+      // Prompt sizes in tokens, measured from lib/feedback.ts, lib/summary.ts,
+      // lib/pronunciation-recap.ts, lib/review.ts and lib/placement.ts.
+      const FEEDBACK_PROMPT = 900;
+      const FEEDBACK_FRAMING = 150;
+      const SUMMARY_PROMPT = 160;
+      const TUTOR_NOTE = 230;
+      const TIPS_INPUT = 1200;
+      const REVIEW = { in: 180, out: 190 };
+      const WRITING = { in: 1300, out: 1200 };
+      const PLACEMENT_CHAT = { in: 3000, out: 600 };
+      const PLACEMENT_ASSESS = { in: 800, out: 300 };
+      const GEMMA_REPLY_TOKENS = 60;
+      const SIZES = [10, 100, 500, 1000, 5000];
+
+      const LIVEKIT = {
+        build: {
+          name: "Build",
+          agentIncluded: 1000,
+          rtcIncluded: 5000,
+          credit: 2.5,
+          concurrency: 5,
+        },
+        ship: {
+          name: "Ship",
+          agentIncluded: 5000,
+          rtcIncluded: 150000,
+          credit: 5,
+          concurrency: 20,
+        },
+        scale: {
+          name: "Scale",
+          agentIncluded: 50000,
+          rtcIncluded: 1500000,
+          credit: 50,
+          concurrency: 600,
+        },
+      };
+
+      const fromFields = (fields) => Object.fromEntries(fields.map((f) => [f[0], f[3]]));
+      const DEFAULTS = {
+        learners: 100,
+        usage: fromFields(USAGE_FIELDS),
+        prices: fromFields(PRICE_FIELDS),
+        assume: fromFields(ASSUME_FIELDS),
+        plans: { livekit: "auto", vercel: "pro", supabase: "pro", azure: "s0" },
+        models: { recap: "opus", tts: "livekit" },
+      };
+      let state = structuredClone(DEFAULTS);
+
+      function compute(s, learners, plan) {
+        const p = s.prices;
+        const a = s.assume;
+        const u = s.usage;
+        const lk = LIVEKIT[plan];
+        const scale = plan === "scale";
+        const llm = (m, tin, tout) => (tin * m.i + tout * m.o) / 1e6;
+        const sonnet = { i: p.sonnetIn, o: p.sonnetOut };
+        const recapModel = s.models.recap === "opus" ? { i: p.opusIn, o: p.opusOut } : sonnet;
+
+        // Each typed reply resends the system prompt and the whole history; the code sets no cache_control.
+        const chatCost = (turns) =>
+          llm(
+            sonnet,
+            turns * a.sysTokens + (a.exchTokens * turns * (turns - 1)) / 2,
+            turns * a.chatOut,
+          );
+        // Finishing a session runs the feedback and tutor note jobs, plus tips after live voice (lib/session-end.ts).
+        const jobsCost = (turns, voice) => {
+          const transcript = a.exchTokens * turns;
+          const feedback = llm(
+            recapModel,
+            FEEDBACK_PROMPT + transcript + FEEDBACK_FRAMING,
+            a.feedbackOut + a.feedbackOutPerTurn * turns,
+          );
+          const note = llm(recapModel, SUMMARY_PROMPT + TUTOR_NOTE + transcript, a.summaryOut);
+          const tips = voice ? llm(recapModel, TIPS_INPUT, a.tipsOut) : 0;
+          return feedback + note + tips;
+        };
+        const cardCost = llm(sonnet, REVIEW.in, REVIEW.out);
+        const writeCost = llm(recapModel, WRITING.in, WRITING.out);
+        const placementCost =
+          llm(sonnet, PLACEMENT_CHAT.in, PLACEMENT_CHAT.out) +
+          llm(recapModel, PLACEMENT_ASSESS.in, PLACEMENT_ASSESS.out);
+
+        const voiceTurns = u.voiceMin * a.voiceTurnsPerMin;
+        const hit = a.gemmaCachePct / 100;
+        const gemmaCallsPerMin = a.voiceTurnsPerMin * (1 + a.preemptivePct / 100);
+        const gemmaInPerCall = a.sysTokens + (a.exchTokens * voiceTurns) / 2;
+        const gemmaPerMin =
+          (gemmaCallsPerMin *
+            (gemmaInPerCall * (hit * p.gemmaCached + (1 - hit) * p.gemmaIn) +
+              GEMMA_REPLY_TOKENS * p.gemmaOut)) /
+          1e6;
+        const fluxPerMin = scale ? p.fluxScale : p.fluxShip;
+        const sonicRate =
+          s.models.tts === "direct" ? p.sonicDirect : scale ? p.sonicScale : p.sonicShip;
+        const ttsPerMin =
+          (a.voiceTurnsPerMin * a.replyChars * (1 + a.ttsWastePct / 100) * sonicRate) / 1e6;
+        const scoredHoursPerMin = (a.voiceTurnsPerMin * a.learnerSecPerTurn) / 3600;
+        const rtcRate = scale ? p.rtcScale : p.rtcShip;
+
+        const activeDays = learners * u.days;
+        const typedSessions = activeDays * u.typedSessions;
+        const voiceSessions = u.voiceMin > 0 ? activeDays : 0;
+        const voiceMinutes = activeDays * u.voiceMin;
+        const rtcMinutes = 2 * voiceMinutes; // the learner and the agent
+        const scoredHours = voiceMinutes * scoredHoursPerMin;
+
+        const flux = voiceMinutes * fluxPerMin;
+        const gemma = voiceMinutes * gemmaPerMin;
+        const tts = voiceMinutes * ttsPerMin;
+        const inference = flux + gemma + (s.models.tts === "livekit" ? tts : 0);
+        const credit = Math.min(lk.credit, inference);
+        const agent =
+          plan === "build" ? 0 : Math.max(0, voiceMinutes - lk.agentIncluded) * p.agentMin;
+        const rtc = plan === "build" ? 0 : Math.max(0, rtcMinutes - lk.rtcIncluded) * rtcRate;
+        const azure = s.plans.azure === "f0" ? 0 : scoredHours * p.azureHour;
+
+        const chat = typedSessions * chatCost(u.typedTurns);
+        const recap =
+          typedSessions * jobsCost(u.typedTurns, false) +
+          voiceSessions * jobsCost(voiceTurns, true);
+        const review = activeDays * u.cards * cardCost;
+        const writing = learners * u.writes * writeCost;
+        const claude = chat + recap + review + writing;
+        const opencodeFee =
+          claude > 0
+            ? (claude * p.opencodePct) / 100 + Math.ceil(claude / p.topUp) * p.opencodeFixed
+            : 0;
+
+        const livekitFee = plan === "ship" ? p.livekitShip : scale ? p.livekitScale : 0;
+        const vercel = s.plans.vercel === "pro" ? p.vercelPro : 0;
+        const supabase = s.plans.supabase === "pro" ? p.supabasePro : 0;
+
+        const groups = [
+          {
+            name: "Live voice",
+            items: [
+              ["Text-to-speech (Cartesia Sonic-3)", tts],
+              ["LiveKit agent minutes over the allowance", agent],
+              ["Speech-to-text (Deepgram Flux)", flux],
+              ["Pronunciation scoring (Azure)", azure],
+              ["Voice tutor model (Gemma 4 31B)", gemma],
+              ["WebRTC minutes over the allowance", rtc],
+              ["LiveKit inference credit", -credit],
+            ],
+          },
+          {
+            name: "Claude through OpenCode",
+            items: [
+              ["Recap jobs: feedback, tutor note, pronunciation tips", recap],
+              ["Typed conversation replies", chat],
+              ["Flashcard sentences", review],
+              ["Writing checks", writing],
+              ["OpenCode top-up fees", opencodeFee],
+            ],
+          },
+          {
+            name: "Plans",
+            items: [
+              [`LiveKit ${lk.name}`, livekitFee],
+              [s.plans.vercel === "pro" ? "Vercel Pro" : "Vercel Hobby", vercel],
+              [s.plans.supabase === "pro" ? "Supabase Pro" : "Supabase Free", supabase],
+            ],
+          },
+        ];
+        const fixed = livekitFee + vercel + supabase;
+        const total = groups.reduce((sum, g) => sum + g.items.reduce((t, i) => t + i[1], 0), 0);
+
+        const peakConcurrent = (learners * u.voiceMin * (a.peakSharePct / 100)) / 60;
+        const problems = [];
+        if (peakConcurrent > lk.concurrency) {
+          problems.push(
+            `about ${fmtNum(peakConcurrent, 1)} voice sessions at once in the busiest hour is over ${lk.name}'s ${lk.concurrency}`,
+          );
+        }
+        if (plan === "build") {
+          if (voiceMinutes > lk.agentIncluded)
+            problems.push(`${fmtNum(voiceMinutes)} voice minutes is over Build's 1,000 a month`);
+          if (rtcMinutes > lk.rtcIncluded)
+            problems.push(`${fmtNum(rtcMinutes)} WebRTC minutes is over Build's 5,000 a month`);
+          if (inference > lk.credit)
+            problems.push(`${usd(inference, 2)} of inference is over Build's $2.50 credit`);
+        }
+
+        const unitVoiceMin =
+          p.agentMin +
+          2 * rtcRate +
+          fluxPerMin +
+          gemmaPerMin +
+          ttsPerMin +
+          scoredHoursPerMin * p.azureHour;
+        const units = [
+          ["1 minute of live voice", unitVoiceMin],
+          [
+            `Live voice session, ${fmtNum(u.voiceMin, 1)} min, with its recap`,
+            u.voiceMin > 0 ? u.voiceMin * unitVoiceMin + jobsCost(voiceTurns, true) : 0,
+          ],
+          [
+            `Typed session, ${u.typedTurns} turns, with its recap`,
+            chatCost(u.typedTurns) + jobsCost(u.typedTurns, false),
+          ],
+          ["Flashcard review", cardCost],
+          ["Writing check", writeCost],
+          ["Placement (once per learner, not in the total)", placementCost],
+        ];
+
+        const dbBytesPerMonth =
+          (typedSessions * u.typedTurns * 2 + voiceSessions * voiceTurns * 2) * a.bytesPerTurn;
+
+        return {
+          plan,
+          groups,
+          fixed,
+          total,
+          voiceMinutes,
+          scoredHours,
+          peakConcurrent,
+          problems,
+          units,
+          dbBytesPerMonth,
+          concurrency: lk.concurrency,
+        };
+      }
+
+      function pickPlan(s, learners) {
+        const options = ["build", "ship", "scale"].map((plan) => compute(s, learners, plan));
+        const fits = options.filter((r) => r.problems.length === 0);
+        if (fits.length === 0) return { result: options[2], fits: false };
+        return { result: fits.reduce((best, r) => (r.total < best.total ? r : best)), fits: true };
+      }
+
+      function run(s, learners) {
+        if (s.plans.livekit === "auto") return pickPlan(s, learners);
+        const result = compute(s, learners, s.plans.livekit);
+        return { result, fits: result.problems.length === 0 };
+      }
+
+      function usd(x, digits) {
+        const sign = x < 0 ? "−$" : "$";
+        return (
+          sign +
+          Math.abs(x).toLocaleString("en-US", {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits,
+          })
+        );
+      }
+      function money(x) {
+        const ax = Math.abs(x);
+        if (ax === 0) return "$0";
+        return usd(x, ax >= 100 ? 0 : ax >= 1 ? 2 : ax >= 0.01 ? 3 : 4);
+      }
+      function fmtNum(x, digits = 0) {
+        return x.toLocaleString("en-US", { maximumFractionDigits: digits });
+      }
+      function bytes(b) {
+        if (b >= 1e9) return `${fmtNum(b / 1e9, 1)} GB`;
+        return `${fmtNum(b / 1e6, 0)} MB`;
+      }
+
+      function notes(s, r, fits) {
+        const out = [];
+        const lk = LIVEKIT[r.plan];
+        if (!fits) {
+          out.push([
+            "error",
+            s.plans.livekit === "auto"
+              ? `No LiveKit plan here fits: ${r.problems.join("; ")}. Above Scale's limits, ask LiveKit about Enterprise.`
+              : `LiveKit ${lk.name} doesn't fit: ${r.problems.join("; ")}. Build has no listed overage price, so the calculator treats its allowances as hard limits.`,
+          ]);
+        } else if (r.peakConcurrent > 0.7 * r.concurrency) {
+          out.push([
+            "warn",
+            `About ${fmtNum(r.peakConcurrent, 1)} voice sessions run at once in the busiest hour, close to ${lk.name}'s limit of ${r.concurrency}. That's an average; real peaks run higher.`,
+          ]);
+        }
+        if (s.plans.vercel === "hobby") {
+          out.push(["warn", "Vercel Hobby is for personal, non-commercial use only."]);
+        }
+        if (s.plans.supabase === "free") {
+          out.push([
+            "warn",
+            `Supabase Free pauses the database after a week with no activity and holds 500 MB. This usage adds about ${bytes(r.dbBytesPerMonth)} a month.`,
+          ]);
+        } else if (r.dbBytesPerMonth > 0) {
+          const months = 8e9 / r.dbBytesPerMonth;
+          out.push([
+            "",
+            `The database grows about ${bytes(r.dbBytesPerMonth)} a month. Supabase Pro's 8 GB lasts ${months >= 120 ? "more than 10 years" : `about ${fmtNum(months)} months`}, then disk costs $0.125 per GB.`,
+          ]);
+        }
+        if (s.plans.azure === "f0") {
+          out.push([
+            r.scoredHours > 5 ? "error" : "warn",
+            `Azure F0 scores one turn at a time and allows 5 audio hours a month. This usage scores ${fmtNum(r.scoredHours, 1)} hours. Overlapping turns and turns past the limit aren't scored.`,
+          ]);
+        }
+        out.push([
+          "",
+          "Typed chat has no quota. These totals assume learners stay within the usage above, and a single heavy user can spend more. Live voice is capped at 5 minutes a day.",
+        ]);
+        out.push([
+          "",
+          "Not included: Vercel usage over Pro's $20 credit, Resend email (Phase 5), a domain and GitHub Actions minutes.",
+        ]);
+        return out;
+      }
+
+      function el(tag, attrs = {}, children = []) {
+        const node = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+          if (k === "text") node.textContent = v;
+          else node.setAttribute(k, v);
+        }
+        for (const child of children) node.append(child);
+        return node;
+      }
+
+      function render() {
+        const { result: r, fits } = run(state, state.learners);
+        const lk = LIVEKIT[r.plan];
+        document.getElementById("out-total").textContent = money(r.total);
+        document.getElementById("out-plan").textContent =
+          `LiveKit ${lk.name}${state.plans.livekit === "auto" ? ", picked automatically" : ""}`;
+        document.getElementById("out-per-learner").textContent = money(r.total / state.learners);
+        document.getElementById("out-split").textContent =
+          `${money(r.total - r.fixed)} / ${money(r.fixed)}`;
+        document.getElementById("out-minutes").textContent =
+          `${fmtNum(r.voiceMinutes)} voice minutes`;
+
+        const breakdown = document.getElementById("out-breakdown");
+        breakdown.replaceChildren();
+        const scaleMax = Math.max(r.total, 1e-9);
+        for (const group of r.groups) {
+          const subtotal = group.items.reduce((t, i) => t + i[1], 0);
+          breakdown.append(
+            el("div", { class: "group-head" }, [
+              el("span", { text: group.name }),
+              el("span", { text: money(subtotal) }),
+            ]),
+          );
+          for (const [label, cost] of group.items) {
+            if (cost === 0 && label.includes("allowance")) continue;
+            const width = Math.max(0, (cost / scaleMax) * 100);
+            breakdown.append(
+              el("div", { class: cost === 0 ? "row zero" : "row" }, [
+                el("span", { text: label }),
+                el("span", { class: "amount", text: money(cost) }),
+                el("div", { class: "bar", "aria-hidden": "true" }, [
+                  el("span", { style: `width: ${width.toFixed(1)}%` }),
+                ]),
+              ]),
+            );
+          }
+        }
+
+        const notesList = document.getElementById("out-notes");
+        notesList.replaceChildren(
+          ...notes(state, r, fits).map(([kind, text]) => el("li", { class: kind, text })),
+        );
+
+        document
+          .getElementById("out-units")
+          .replaceChildren(
+            ...r.units.map(([label, cost]) =>
+              el("tr", {}, [
+                el("td", { text: label }),
+                el("td", { class: "num", text: money(cost) }),
+              ]),
+            ),
+          );
+
+        document.getElementById("out-sizes").replaceChildren(
+          ...SIZES.map((n) => {
+            const { result: sized, fits: sizedFits } = pickPlan(state, n);
+            return el("tr", {}, [
+              el("td", { class: "num", text: fmtNum(n) }),
+              el("td", {
+                text: sizedFits ? LIVEKIT[sized.plan].name : "Over Scale's limits",
+              }),
+              el("td", { class: "num", text: money(sized.total) }),
+              el("td", { class: "num", text: money(sized.total / n) }),
+            ]);
+          }),
+        );
+
+        for (const [name, values] of Object.entries(PRESETS)) {
+          const pressed = Object.entries(values).every(([k, v]) => state.usage[k] === v);
+          document
+            .querySelector(`[data-preset="${name}"]`)
+            .setAttribute("aria-pressed", String(pressed));
+        }
+        for (const chip of document.querySelectorAll("[data-learners]")) {
+          chip.setAttribute(
+            "aria-pressed",
+            String(Number(chip.dataset.learners) === state.learners),
+          );
+        }
+      }
+
+      function buildFields(containerId, fields, section) {
+        const container = document.getElementById(containerId);
+        for (const [key, label, hint, , step, min = 0, max] of fields) {
+          const input = el("input", {
+            type: "number",
+            step: String(step),
+            min: String(min),
+            id: `${section}-${key}`,
+          });
+          if (max !== undefined) input.setAttribute("max", String(max));
+          input.addEventListener("input", () => {
+            const value = Number(input.value);
+            if (input.value === "" || !Number.isFinite(value) || value < min) return;
+            state[section][key] = max !== undefined ? Math.min(value, max) : value;
+            render();
+          });
+          container.append(
+            el("label", {}, [label, hint ? el("small", { text: hint }) : "", input]),
+          );
+        }
+      }
+
+      function syncInputs() {
+        document.getElementById("learners").value = state.learners;
+        for (const section of ["usage", "prices", "assume"]) {
+          for (const [key, value] of Object.entries(state[section])) {
+            document.getElementById(`${section}-${key}`).value = value;
+          }
+        }
+        for (const [key, value] of Object.entries(state.plans)) {
+          document.getElementById(`plan-${key}`).value = value;
+        }
+        for (const [key, value] of Object.entries(state.models)) {
+          document.getElementById(`model-${key}`).value = value;
+        }
+      }
+
+      buildFields("usage-fields", USAGE_FIELDS, "usage");
+      buildFields("price-fields", PRICE_FIELDS, "prices");
+      buildFields("assume-fields", ASSUME_FIELDS, "assume");
+
+      const learnersInput = document.getElementById("learners");
+      learnersInput.addEventListener("input", () => {
+        const value = Math.round(Number(learnersInput.value));
+        if (!Number.isFinite(value) || value < 1) return;
+        state.learners = value;
+        render();
+      });
+
+      const learnerChips = document.getElementById("learner-chips");
+      for (const n of SIZES) {
+        const chip = el("button", {
+          type: "button",
+          class: "chip",
+          "data-learners": String(n),
+          text: fmtNum(n),
+        });
+        chip.addEventListener("click", () => {
+          state.learners = n;
+          syncInputs();
+          render();
+        });
+        learnerChips.append(chip);
+      }
+
+      const presetChips = document.getElementById("preset-chips");
+      for (const [name, values] of Object.entries(PRESETS)) {
+        const chip = el("button", {
+          type: "button",
+          class: "chip",
+          "data-preset": name,
+          text: name[0].toUpperCase() + name.slice(1),
+        });
+        chip.addEventListener("click", () => {
+          state.usage = { ...values };
+          syncInputs();
+          render();
+        });
+        presetChips.append(chip);
+      }
+
+      for (const key of Object.keys(state.plans)) {
+        document.getElementById(`plan-${key}`).addEventListener("change", (event) => {
+          state.plans[key] = event.target.value;
+          render();
+        });
+      }
+      for (const key of Object.keys(state.models)) {
+        document.getElementById(`model-${key}`).addEventListener("change", (event) => {
+          state.models[key] = event.target.value;
+          render();
+        });
+      }
+
+      document.getElementById("reset").addEventListener("click", () => {
+        state = structuredClone(DEFAULTS);
+        syncInputs();
+        render();
+      });
+
+      syncInputs();
+      render();
+    </script>
+  </body>
+</html>

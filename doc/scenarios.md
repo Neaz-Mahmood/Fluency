@@ -29,6 +29,7 @@ lib/prompts.ts            # Per-scenario behavior, composed into the system prom
 
 - The `ScenarioPicker` receives an `onSelect(scenarioId)` callback. In `<Conversation />` the callback resets the transcript, calls `interrupt()` to clean up any in-flight state, and stores the choice in `scenarioId` state.
 - Once a scenario is chosen, `lib/prompts.ts` composes a system prompt by combining a base "Fluency" persona with a per-scenario block (`SCENARIO_PROMPTS`). Unknown scenario ids fall back to `free-chat`.
+- `getSystemPrompt(scenarioId, learner)` then appends level-specific scaffolding rules based on `cefrSpeaking` (with optional native-language assistance for A1–B1) and past session context from `compactTutorSummary`.
 
 ## Notes
 

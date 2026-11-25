@@ -42,3 +42,6 @@ yarn-error.log*
 next-env.d.ts
 
 research/
+
+# Claude Code local settings and delegation plans
+.claude/

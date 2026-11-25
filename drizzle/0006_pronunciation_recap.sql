@@ -1,0 +1,2 @@
+ALTER TABLE "session_feedback" ADD COLUMN "pronunciation_status" "feedback_status";--> statement-breakpoint
+ALTER TABLE "session_feedback" ADD COLUMN "pronunciation_tips" jsonb DEFAULT '[]'::jsonb NOT NULL;

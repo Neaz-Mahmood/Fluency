@@ -1,0 +1,465 @@
+const en = {
+  home: {
+    badge: "Spoken English Training",
+    title: "Speak until the words come easily.",
+    description:
+      "Fluency provides an immediate, voice-first conversation partner. Select a realistic scenario, speak aloud, and engage in real-time dialogue without friction.",
+    startPracticing: "Start practicing",
+    browseScenarios: "Browse scenarios",
+    steps: [
+      {
+        number: "01",
+        title: "You speak",
+        body: "Hold the mic and say a sentence. Fast in-browser speech recognition transcribes your words immediately.",
+      },
+      {
+        number: "02",
+        title: "A partner answers",
+        body: "Your partner responds in natural, spoken English tailored to your scenario, maintaining operational flow.",
+      },
+      {
+        number: "03",
+        title: "You hear it",
+        body: "The reply is vocalized aloud via speech synthesis, seamlessly returning the conversation back to you.",
+      },
+    ],
+    panelBadge: "Operational Focus",
+    panelTitle: "Designed for spoken muscle memory",
+    panelBody:
+      "Real-world conversations require immediate vocal retrieval. Fluency bypasses passive exercises to build verbal confidence in low-stakes simulation.",
+    panelCta: "Launch Session",
+  },
+  picker: {
+    badge: "Select Practice Scenario",
+    title: "What do you want to practice?",
+    subtitle:
+      "Choose an environment. You will speak aloud, hear an immediate response, and guide the dialogue back and forth.",
+    defaultTag: "Scenario",
+    begin: "Begin dialogue",
+  },
+  scenarios: {
+    "free-chat": {
+      title: "Free chat",
+      description: "Talk about your day, your plans, or whatever is on your mind.",
+      tag: "Spontaneous",
+    },
+    "job-interview": {
+      title: "Job interview",
+      description: "Practice answering questions as if you are interviewing for a job.",
+      tag: "Professional",
+    },
+    cafe: {
+      title: "Ordering at a café",
+      description: "Order a drink and something to eat, then handle a small change.",
+      tag: "Daily Life",
+    },
+    neighbor: {
+      title: "Meeting a neighbor",
+      description: "Introduce yourself and make small talk with someone new.",
+      tag: "Social",
+    },
+  },
+  practice: {
+    activeScenario: "Active Scenario",
+    switchScenario: "Switch scenario",
+    finish: "Finish and get feedback",
+    finishing: "Finishing…",
+    statusListening: "Listening…",
+    statusThinking: "Processing…",
+    statusSpeaking: "Speaking…",
+    statusHandsFree: "Hands-free active",
+    statusReady: "Ready for input",
+    handsFree: "Hands-free",
+    holdToTalk: "Hold to talk",
+    releaseToSend: "Release to send",
+    stop: "Stop",
+    typeMessage: "Type a message",
+    placeholder: "Or type what you would say...",
+    send: "Send",
+    speechUnavailable:
+      "Speech recognition is unavailable in this browser. You can type your lines, and replies will be vocalized.",
+    speechUnavailableWithoutVoice:
+      "Speech recognition is unavailable in this browser. You can type your lines, and replies will be vocalized if audio synthesis is available.",
+  },
+  transcript: {
+    ready: "Ready to listen",
+    emptyTitle: "Start the conversation",
+    emptyBody:
+      "Hold the talk button to speak naturally, or type a sentence below to begin your dialogue.",
+    you: "You",
+    partner: "Partner",
+    listening: "Listening...",
+  },
+  errors: {
+    cannotHear: "This browser cannot hear you. Type your line instead.",
+    partnerFailed: "The conversation partner could not reply.",
+    emptyReply: "The partner did not say anything. Try again.",
+    cutoff: "The reply was cut off. You can keep going.",
+    speakFailed: "The reply could not be spoken. You can still read it.",
+  },
+  speech: {
+    "not-allowed": "Microphone access is blocked. Allow the mic, or type instead.",
+    "service-not-allowed": "Speech recognition is unavailable in this browser.",
+    network: "Speech recognition needs a network connection in this browser.",
+    "audio-capture": "No microphone was found.",
+    failed: "Speech recognition failed.",
+    "already-running": "Speech recognition is already running.",
+  },
+  placement: {
+    title: "Find your level",
+    intro:
+      "Say hello in English to start. Your partner will ask up to 6 short questions. There are no grades, so just answer as well as you can.",
+    progress: "Answers",
+    finish: "See my level",
+    finishing: "Calculating…",
+    resultTitle: "Your starting level",
+    speaking: "Speaking",
+    writing: "Writing",
+    resultNote: "This is a first estimate. It updates as you practice.",
+    startPracticing: "Start practicing",
+    error: "Your level could not be calculated. Try again.",
+    retry: "Try again",
+  },
+  recap: {
+    title: "Your feedback",
+    pending: "Preparing your feedback… This takes about half a minute.",
+    failed: "Feedback could not be prepared for this conversation.",
+    none: "No corrections this time. Nice work!",
+    youSaid: "You said",
+    correct: "Correct form",
+    upgrade: "More natural",
+    upgradeOptional: "Optional: your version was correct",
+    upgradeAlso: "Optional",
+    why: "Why",
+    vocabulary: "Words to remember",
+    save: "Save to flashcards",
+    saving: "Saving…",
+    saved: "Saved",
+    saveFailed: "Couldn't save. Try again.",
+  },
+  pronunciation: {
+    title: "Pronunciation",
+    pending: "Checking your pronunciation…",
+    failed: "Pronunciation feedback could not be prepared for this conversation.",
+    accuracy: "Accuracy",
+    fluency: "Fluency",
+    prosody: "Rhythm and intonation",
+    tips: "Tips",
+    sounds: "Sounds to practice",
+    inWords: "In",
+    noPatterns:
+      "No sound patterns stood out this time. Automatic scoring often misses th, f, v and z sounds, so keep practicing them.",
+    words: "Words to practice",
+    scoredTurns: "Spoken turns scored",
+    scoreNote: "Scores are out of 100, from automatic speech assessment.",
+  },
+  writing: {
+    title: "Writing coach",
+    intro:
+      "Paste an email or a short paragraph in English. You'll get corrections for real mistakes and optional tips to sound more natural.",
+    placeholder: "Dear Mr. Rahman, …",
+    submit: "Check my writing",
+    submitting: "Sending…",
+    errors: {
+      empty: "Write something first.",
+      "too-long": "That's too long. Keep it under 2,000 characters.",
+      failed: "Something went wrong. Try again.",
+    },
+  },
+  review: {
+    title: "Review",
+    meaning: "Meaning",
+    noSentence: "Type or say the English word or phrase.",
+    placeholder: "Your answer",
+    check: "Check",
+    speak: "Speak",
+    stopSpeaking: "Stop",
+    due: "Cards due:",
+    correct: "Correct!",
+    close: "Almost: check the form.",
+    wrong: "Not quite.",
+    answer: "Answer:",
+    ratings: {
+      "1": "Again",
+      "2": "Hard",
+      "3": "Good",
+      "4": "Easy",
+    },
+    next: "Next card",
+    emptyTitle: "No cards due",
+    emptyBody:
+      "Save corrections and words from a conversation's feedback, and they will show up here.",
+    toHistory: "Go to history",
+    error: "The review could not load.",
+    retry: "Try again",
+  },
+  voiceConsent: {
+    title: "Live voice",
+    body: "In live voice sessions, your voice is sent to speech services while you talk, to understand you and to score your pronunciation. Fluency does not keep recordings. Only the transcript and the scores are saved.",
+    given: "You agreed to live voice.",
+    notGiven:
+      "You have not agreed to live voice yet. Typed practice and browser speech still work.",
+    agree: "I agree",
+    withdraw: "Withdraw consent",
+    saving: "Saving…",
+    error: "Could not save. Try again.",
+  },
+  liveVoice: {
+    start: "Start live voice",
+    stop: "End live voice",
+    connecting: "Connecting…",
+    hint: "Talk naturally, with no button to hold. Up to 5 minutes a day.",
+    consentTitle: "Before you start live voice",
+    agreeAndStart: "Agree and start",
+    notNow: "Not now",
+    unavailable:
+      "Live voice isn't available right now. You can keep practicing with the mic button or by typing.",
+    quotaUsed:
+      "You've used today's 5 minutes of live voice. It resets at midnight, Bangladesh time. You can keep practicing with the mic button or by typing.",
+    micDenied: "Fluency can't use your microphone. Allow the mic in your browser, or type instead.",
+    dropped:
+      "Live voice disconnected. You can start it again, or keep practicing with the mic button or by typing.",
+    tapToHear: "Tap to hear your partner",
+    consentWithdrawn:
+      "Live voice stopped because you withdrew consent in Settings. You can keep practicing with the mic button or by typing.",
+    lastMinute: "Less than a minute of live voice left today.",
+  },
+};
+
+export type Messages = typeof en;
+
+const bn: Messages = {
+  home: {
+    badge: "স্পোকেন ইংলিশ ট্রেনিং",
+    title: "কথা বলা সহজ না হওয়া পর্যন্ত বলতে থাকুন।",
+    description:
+      "ফ্লুয়েন্সি আপনাকে দিচ্ছে তাৎক্ষণিক ভয়েস পার্টনার। বাস্তব জীবনের পরিস্থিতি বেছে নিন, মুখে কথা বলুন এবং অনায়াসে সরাসরি কথোপকথন চালিয়ে যান।",
+    startPracticing: "অনুশীলন শুরু করুন",
+    browseScenarios: "পরিস্থিতিগুলো দেখুন",
+    steps: [
+      {
+        number: "০১",
+        title: "আপনি কথা বলুন",
+        body: "মাইক চেপে ধরে একটি বাক্য বলুন। ব্রাউজারের স্পিচ রেকগনিশন সঙ্গে সঙ্গে আপনার কথা টেক্সট হিসেবে লিখে নেবে।",
+      },
+      {
+        number: "০২",
+        title: "পার্টনার উত্তর দেবে",
+        body: "আপনার পরিস্থিতির সাথে মানানসই স্বাভাবিক কথ্য ইংরেজিতে পার্টনার উত্তর দেবে, যাতে কথার ছন্দ বজায় থাকে।",
+      },
+      {
+        number: "০৩",
+        title: "আপনি শুনুন",
+        body: "স্পিচ সিন্থেসিসের মাধ্যমে উত্তরটি মুখে পড়ে শোনানো হবে, যাতে আপনি আবার কথা চালিয়ে যেতে পারেন।",
+      },
+    ],
+    panelBadge: "মূল উদ্দেশ্য",
+    panelTitle: "মুখে কথা বলার অভ্যাস গড়ে তোলার জন্য তৈরি",
+    panelBody:
+      "বাস্তব জীবনের কথোপকথনে তাৎক্ষণিক কথা মনে করতে হয়। তাই নিষ্ক্রিয় অনুশীলনের বদলে ফ্লুয়েন্সি আপনাকে সহজে মুখে কথা বলে আত্মবিশ্বাস বাড়াতে সাহায্য করে।",
+    panelCta: "সেশন শুরু করুন",
+  },
+  picker: {
+    badge: "অনুশীলনের পরিস্থিতি বেছে নিন",
+    title: "আপনি কী অনুশীলন করতে চান?",
+    subtitle:
+      "একটি পরিবেশ বেছে নিন। আপনি মুখে কথা বলবেন, সাথে সাথে উত্তর শুনবেন এবং এভাবে কথোপকথন এগিয়ে নেবেন।",
+    defaultTag: "পরিস্থিতি",
+    begin: "কথোপকথন শুরু করুন",
+  },
+  scenarios: {
+    "free-chat": {
+      title: "উন্মুক্ত আলাপ",
+      description: "আপনার দিনকাল, ভবিষ্যৎ পরিকল্পনা বা মনের যে কোনো বিষয় নিয়ে কথা বলুন।",
+      tag: "স্বতঃস্ফূর্ত",
+    },
+    "job-interview": {
+      title: "চাকরির ইন্টারভিউ",
+      description: "চাকরির ইন্টারভিউয়ের জন্য বিভিন্ন প্রশ্নের উত্তর দেওয়ার অনুশীলন করুন।",
+      tag: "পেশাদার",
+    },
+    cafe: {
+      title: "ক্যাফেতে অর্ডার করা",
+      description: "পানীয় ও খাবার অর্ডার করুন এবং প্রয়োজনে অর্ডার পরিবর্তন করার অনুশীলন করুন।",
+      tag: "দৈনন্দিন জীবন",
+    },
+    neighbor: {
+      title: "প্রতিবেশীর সাথে দেখা",
+      description: "নিজের পরিচয় দিন এবং নতুন কারো সাথে পরিচিত হওয়ার আলাপ করুন।",
+      tag: "সামাজিক",
+    },
+  },
+  practice: {
+    activeScenario: "বর্তমান পরিস্থিতি",
+    switchScenario: "পরিস্থিতি পরিবর্তন করুন",
+    finish: "শেষ করে ফিডব্যাক দেখুন",
+    finishing: "শেষ হচ্ছে…",
+    statusListening: "শুনছি…",
+    statusThinking: "প্রসেসিং হচ্ছে…",
+    statusSpeaking: "বলছে…",
+    statusHandsFree: "হ্যান্ডস-ফ্রি চালু আছে",
+    statusReady: "বলার জন্য প্রস্তুত",
+    handsFree: "হ্যান্ডস-ফ্রি",
+    holdToTalk: "চেপে ধরে কথা বলুন",
+    releaseToSend: "ছেড়ে দিলে পাঠানো হবে",
+    stop: "থামুন",
+    typeMessage: "মেসেজ লিখুন",
+    placeholder: "অথবা যা বলতে চান তা এখানে লিখুন...",
+    send: "পাঠান",
+    speechUnavailable:
+      "এই ব্রাউজারে স্পিচ রেকগনিশন কাজ করছে না। আপনি লিখে পাঠাতে পারেন এবং উত্তর মুখে শোনানো হবে।",
+    speechUnavailableWithoutVoice:
+      "এই ব্রাউজারে স্পিচ রেকগনিশন কাজ করছে না। আপনি লিখে পাঠাতে পারেন, এবং অডিও সিন্থেসিস থাকলে উত্তর মুখে শোনানো হবে।",
+  },
+  transcript: {
+    ready: "শোনার জন্য প্রস্তুত",
+    emptyTitle: "কথোপকথন শুরু করুন",
+    emptyBody:
+      "কথা বলার বোতামটি চেপে ধরে স্বাভাবিকভাবে কথা বলুন, অথবা নিচে লিখে কথোপকথন শুরু করুন।",
+    you: "আপনি",
+    partner: "পার্টনার",
+    listening: "শুনছি...",
+  },
+  errors: {
+    cannotHear: "এই ব্রাউজার আপনার কথা শুনতে পারছে না। অনুগ্রহ করে লিখে পাঠান।",
+    partnerFailed: "পার্টনার উত্তর দিতে পারেনি।",
+    emptyReply: "পার্টনার কিছু বলেনি। আবার চেষ্টা করুন।",
+    cutoff: "উত্তরটি পুরো আসেনি। আপনি কথা চালিয়ে যেতে পারেন।",
+    speakFailed: "উত্তরটি মুখে পড়ে শোনানো যায়নি। তবে আপনি এটি পড়তে পারেন।",
+  },
+  speech: {
+    "not-allowed": "মাইক্রোফোন ব্যবহারের অনুমতি নেই। মাইকের অনুমতি দিন, অথবা লিখে পাঠান।",
+    "service-not-allowed": "এই ব্রাউজারে স্পিচ রেকগনিশন সুবিধা নেই।",
+    network: "এই ব্রাউজারে স্পিচ রেকগনিশনের জন্য ইন্টারনেট সংযোগ প্রয়োজন।",
+    "audio-capture": "কোনো মাইক্রোফোন পাওয়া যায়নি।",
+    failed: "স্পিচ রেকগনিশন ব্যর্থ হয়েছে।",
+    "already-running": "স্পিচ রেকগনিশন ইতিমধ্যে চালু আছে।",
+  },
+  placement: {
+    title: "আপনার লেভেল জেনে নিন",
+    intro:
+      "শুরু করতে ইংরেজিতে হ্যালো বলুন। আপনার পার্টনার আপনাকে সর্বোচ্চ ৬টি ছোট প্রশ্ন করবেন। এখানে কোনো গ্রেড নেই, তাই যথাসম্ভব ভালোভাবে উত্তর দিন।",
+    progress: "উত্তর",
+    finish: "আমার লেভেল দেখুন",
+    finishing: "হিসাব করা হচ্ছে…",
+    resultTitle: "আপনার শুরুর লেভেল",
+    speaking: "বলা",
+    writing: "লেখা",
+    resultNote: "এটি একটি প্রাথমিক অনুমান। অনুশীলনের সাথে সাথে এটি আপডেট হবে।",
+    startPracticing: "অনুশীলন শুরু করুন",
+    error: "আপনার লেভেল হিসাব করা যায়নি। আবার চেষ্টা করুন।",
+    retry: "আবার চেষ্টা করুন",
+  },
+  recap: {
+    title: "আপনার ফিডব্যাক",
+    pending: "আপনার ফিডব্যাক তৈরি হচ্ছে… প্রায় আধা মিনিট লাগবে।",
+    failed: "এই কথোপকথনের ফিডব্যাক তৈরি করা যায়নি।",
+    none: "এবার কোনো সংশোধন নেই। দারুণ!",
+    youSaid: "আপনি বলেছেন",
+    correct: "সঠিক রূপ",
+    upgrade: "আরও স্বাভাবিক",
+    upgradeOptional: "ঐচ্ছিক: আপনার বাক্যটি সঠিক ছিল",
+    upgradeAlso: "ঐচ্ছিক",
+    why: "কেন",
+    vocabulary: "মনে রাখার মতো শব্দ",
+    save: "ফ্ল্যাশকার্ডে রাখুন",
+    saving: "রাখা হচ্ছে…",
+    saved: "রাখা হয়েছে",
+    saveFailed: "রাখা যায়নি। আবার চেষ্টা করুন।",
+  },
+  pronunciation: {
+    title: "উচ্চারণ",
+    pending: "আপনার উচ্চারণ যাচাই করা হচ্ছে…",
+    failed: "এই কথোপকথনের উচ্চারণ ফিডব্যাক তৈরি করা যায়নি।",
+    accuracy: "নির্ভুলতা",
+    fluency: "সাবলীলতা",
+    prosody: "ছন্দ ও সুর",
+    tips: "পরামর্শ",
+    sounds: "যে ধ্বনিগুলো অনুশীলন করবেন",
+    inWords: "যে শব্দে",
+    noPatterns:
+      "এবার কোনো ধ্বনির সমস্যা আলাদা করে ধরা পড়েনি। স্বয়ংক্রিয় যাচাই প্রায়ই th, f, v আর z ধ্বনির ভুল ধরতে পারে না, তাই এগুলোর অনুশীলন চালিয়ে যান।",
+    words: "যে শব্দগুলো অনুশীলন করবেন",
+    scoredTurns: "যাচাই করা কথার সংখ্যা",
+    scoreNote: "স্কোর ১০০-এর মধ্যে, স্বয়ংক্রিয় উচ্চারণ যাচাই থেকে।",
+  },
+  writing: {
+    title: "লেখার কোচ",
+    intro:
+      "ইংরেজিতে একটি ইমেইল বা ছোট অনুচ্ছেদ লিখুন বা পেস্ট করুন। আসল ভুলগুলোর সংশোধন আর আরও স্বাভাবিক শোনানোর ঐচ্ছিক পরামর্শ পাবেন।",
+    placeholder: "প্রিয় রহমান সাহেব, …",
+    submit: "আমার লেখা যাচাই করুন",
+    submitting: "পাঠানো হচ্ছে…",
+    errors: {
+      empty: "আগে কিছু লিখুন।",
+      "too-long": "লেখাটি অনেক বড়। ২,০০০ অক্ষরের মধ্যে রাখুন।",
+      failed: "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।",
+    },
+  },
+  review: {
+    title: "রিভিউ",
+    meaning: "অর্থ",
+    noSentence: "ইংরেজি শব্দ বা বাক্যাংশটি লিখুন বা বলুন।",
+    placeholder: "আপনার উত্তর",
+    check: "যাচাই করুন",
+    speak: "বলুন",
+    stopSpeaking: "থামুন",
+    due: "বাকি কার্ড:",
+    correct: "সঠিক!",
+    close: "প্রায় হয়েছে: রূপটি দেখে নিন।",
+    wrong: "ঠিক হয়নি।",
+    answer: "উত্তর:",
+    ratings: {
+      "1": "আবার",
+      "2": "কঠিন",
+      "3": "ভালো",
+      "4": "সহজ",
+    },
+    next: "পরের কার্ড",
+    emptyTitle: "এখন কোনো কার্ড নেই",
+    emptyBody: "কথোপকথনের ফিডব্যাক থেকে সংশোধন ও শব্দ রাখুন, সেগুলো এখানে দেখা যাবে।",
+    toHistory: "হিস্টরিতে যান",
+    error: "রিভিউ লোড করা যায়নি।",
+    retry: "আবার চেষ্টা করুন",
+  },
+  voiceConsent: {
+    title: "লাইভ ভয়েস",
+    body: "লাইভ ভয়েস সেশনে কথা বলার সময় আপনার কণ্ঠ স্পিচ সার্ভিসে পাঠানো হয়, যাতে আপনার কথা বোঝা যায় এবং উচ্চারণ যাচাই করা যায়। ফ্লুয়েন্সি কোনো রেকর্ডিং রাখে না। শুধু লেখা রূপ আর স্কোর সংরক্ষণ করা হয়।",
+    given: "আপনি লাইভ ভয়েসে সম্মতি দিয়েছেন।",
+    notGiven:
+      "আপনি এখনো লাইভ ভয়েসে সম্মতি দেননি। টাইপ করে অনুশীলন আর ব্রাউজারের স্পিচ এখনো কাজ করবে।",
+    agree: "আমি সম্মত",
+    withdraw: "সম্মতি তুলে নিন",
+    saving: "সংরক্ষণ হচ্ছে…",
+    error: "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+  },
+  liveVoice: {
+    start: "লাইভ ভয়েস শুরু করুন",
+    stop: "লাইভ ভয়েস বন্ধ করুন",
+    connecting: "সংযোগ হচ্ছে…",
+    hint: "বোতাম চেপে না ধরে স্বাভাবিকভাবে কথা বলুন। দিনে সর্বোচ্চ ৫ মিনিট।",
+    consentTitle: "লাইভ ভয়েস শুরুর আগে",
+    agreeAndStart: "সম্মতি দিয়ে শুরু করুন",
+    notNow: "এখন না",
+    unavailable:
+      "লাইভ ভয়েস এখন চালু করা যাচ্ছে না। মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যেতে পারেন।",
+    quotaUsed:
+      "আজকের ৫ মিনিটের লাইভ ভয়েস শেষ। বাংলাদেশ সময় রাত ১২টায় আবার পাবেন। মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যেতে পারেন।",
+    micDenied:
+      "ফ্লুয়েন্সি আপনার মাইক্রোফোন ব্যবহার করতে পারছে না। ব্রাউজারে মাইকের অনুমতি দিন, অথবা লিখে পাঠান।",
+    dropped:
+      "লাইভ ভয়েসের সংযোগ বিচ্ছিন্ন হয়েছে। আবার শুরু করতে পারেন, অথবা মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যান।",
+    tapToHear: "পার্টনারের কথা শুনতে ট্যাপ করুন",
+    consentWithdrawn:
+      "আপনি সেটিংসে সম্মতি তুলে নেওয়ায় লাইভ ভয়েস বন্ধ হয়েছে। মাইক বোতাম চেপে বা লিখে অনুশীলন চালিয়ে যেতে পারেন।",
+    lastMinute: "আজকের লাইভ ভয়েসের এক মিনিটেরও কম সময় বাকি।",
+  },
+};
+
+const BY_NATIVE_LANGUAGE: Partial<Record<string, Messages>> = { "bn-BD": bn };
+
+export function getMessages(nativeLanguage: string | null | undefined): Messages {
+  return (nativeLanguage && BY_NATIVE_LANGUAGE[nativeLanguage]) || en;
+}
+
+export { en, bn };

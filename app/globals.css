@@ -51,6 +51,12 @@
   --color-oceanic-subtle: #f4f7fb;
   --color-oceanic-border: #d8e2ed;
   --color-oceanic-muted: #556b82;
+  --color-oceanic-secondary: #0461a4;
+  --color-oceanic-outline: #757682;
+  --color-oceanic-outline-variant: #c5c6d2;
+  --color-oceanic-error: #ba1a1a;
+  --color-oceanic-error-container: #ffdad6;
+  --color-oceanic-on-error-container: #93000a;
 
   --radius-sm: 0.125rem;
   --radius-md: 0.25rem;

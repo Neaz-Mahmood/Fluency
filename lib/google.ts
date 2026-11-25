@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ChatTurn } from "@/lib/chat-request";
 import type { TextReply } from "@/lib/anthropic";
+import { kindForStatus, ProviderError } from "@/lib/provider-errors";
 
 const GOOGLE_MODEL = "gemini-3.8-flash";
 
@@ -72,6 +73,7 @@ export function streamGoogleReply(options: {
   apiKey: string;
   system: string;
   messages: ChatTurn[];
+  maxTokens?: number;
 }): TextReply {
   const controller = new AbortController();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_MODEL}:streamGenerateContent?alt=sse`;
@@ -92,11 +94,15 @@ export function streamGoogleReply(options: {
             role: message.role === "assistant" ? "model" : "user",
             parts: [{ text: message.content }],
           })),
-          generationConfig: { maxOutputTokens: 1500 },
+          generationConfig: { maxOutputTokens: options.maxTokens ?? 1500 },
         }),
       });
 
-      if (!response.ok) throw new Error(await googleFailure(response));
+      if (!response.ok) {
+        throw new ProviderError(kindForStatus(response.status), await googleFailure(response), {
+          status: response.status,
+        });
+      }
       yield* readSse(response);
     })(),
   };
